@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.resume:
         game_id = args.resume
         log_path = log_dir / f"{game_id}.txt"
+        print(f"game_id: {game_id}")
         try:
             r = decide_and_next(game_id, 0, None)
         except HTTPError as e:
@@ -75,11 +76,13 @@ def main(argv: list[str] | None = None) -> int:
                 print("failed: missing attributes for expected person", file=sys.stderr)
                 return 2
             decision = strategy.decide(json.loads(lines[idx]))
+            print(f"decision: idx={idx} accept={decision}")
             r = decide_and_next(game_id, idx, decision)
     else:
         game = meta
         game_id = game["gameId"]
         log_path = log_dir / f"{game_id}.txt"
+        print(f"game_id: {game_id}")
         r = decide_and_next(game_id, 0, None)
 
     with log_path.open("a") as lf:
@@ -90,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             lf.flush()
             decision = strategy.decide(person["attributes"])
+            print(f"decision: idx={person['personIndex']} accept={decision}")
             r = decide_and_next(game_id, person["personIndex"], decision)
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))
