@@ -1,6 +1,8 @@
 import json
+import time
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 BASE_URL = "https://berghain.challenges.listenlabs.ai/"
 
@@ -14,7 +16,22 @@ def _get_json(path: str, params: dict) -> dict:
     if params:
         url += "?" + urlencode(params)
     req = Request(url, headers={"Accept": "application/json"})
-    with urlopen(req) as r:
+    delay = 1.0
+    for _ in range(8):
+        try:
+            with urlopen(req, timeout=10) as r:
+                return json.loads(r.read().decode())
+        except HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504):
+                time.sleep(delay)
+                delay = min(10.0, delay * 2)
+                continue
+            raise
+        except URLError:
+            time.sleep(delay)
+            delay = min(10.0, delay * 2)
+    # last attempt
+    with urlopen(req, timeout=10) as r:
         return json.loads(r.read().decode())
 
 
