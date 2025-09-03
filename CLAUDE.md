@@ -1,0 +1,5 @@
+@README.md
+
+@AGENTS.md
+
+@CHALLENGE.md
