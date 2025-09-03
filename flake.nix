@@ -41,7 +41,8 @@
           app = pkgs.writeShellApplication {
             name = "berghain";
             text = ''
-              exec ${pkgs.python3}/bin/python ${./berghain/main.py} "$@"
+              export PYTHONPATH=${toString ./.}
+              exec ${pkgs.python3}/bin/python -m berghain.main "$@"
             '';
           };
         in

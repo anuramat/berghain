@@ -46,7 +46,7 @@ def load_strategy(
     spec: str | None, constraints: list[dict], attribute_statistics: dict
 ):
     if not spec:
-        spec = "default_strategy:DefaultStrategy"
+        spec = "berghain.default_strategy:DefaultStrategy"
     mod_name, _, cls_name = spec.partition(":")
     if not mod_name or not cls_name:
         raise SystemExit("--strategy must be 'module:ClassName'")
