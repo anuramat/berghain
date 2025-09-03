@@ -38,13 +38,15 @@
               tqdm
               typer
             ];
-          app = (pkgs.writeShellApplication {
-            name = "berghain";
-            text = ''
-              export PYTHONPATH=${toString ./.}
-              exec ${pkgs.python3}/bin/python -m berghain.cli "$@"
-            '';
-          }).overrideAttrs { allowSubstitutes = false; };
+          app =
+            (pkgs.writeShellApplication {
+              name = "berghain";
+              text = ''
+                export PYTHONPATH=${toString ./.}
+                exec ${pkgs.python3}/bin/python -m berghain.cli "$@"
+              '';
+            }).overrideAttrs
+              { allowSubstitutes = false; };
         in
         {
           _module.args.pkgs = import nixpkgs {
