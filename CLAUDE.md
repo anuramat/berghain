@@ -1,4 +1,4 @@
-problem description:
+official problem description:
 
 @CHALLENGE.md
 
@@ -6,7 +6,7 @@ guidance for AI agents:
 
 @AGENTS.md
 
-problem analysis:
+user notes, should be prioritized over anything else:
 
 @NOTES.md
 
