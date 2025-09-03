@@ -23,9 +23,54 @@ def load_strategy(module_name: str | None, scenario, constraints, attribute_stat
     return cls(scenario, constraints, attribute_statistics)
 
 
+def analyze_log(log_file: str) -> int:
+    from collections import defaultdict
+
+    counts = defaultdict(int)
+    total = 0
+
+    try:
+        with open(log_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                attrs = json.loads(line)
+                true_attrs = tuple(
+                    sorted(attr for attr, value in attrs.items() if value)
+                )
+                counts[true_attrs] += 1
+                total += 1
+    except FileNotFoundError:
+        print(f"Error: log file not found: {log_file}", file=sys.stderr)
+        return 1
+    except json.JSONDecodeError as e:
+        print(f"Error: invalid JSON in log file: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Attribute combination statistics from {log_file}:")
+    print()
+
+    for attrs, count in sorted(counts.items()):
+        if not attrs:
+            print(f"No attributes: {count}")
+        else:
+            attrs_str = ", ".join(attrs)
+            print(f"Only {attrs_str}: {count}")
+
+    print()
+    print(f"Total: {total}")
+
+    verification = sum(counts.values())
+    if verification != total:
+        print(f"Warning: sum mismatch {verification} != {total}", file=sys.stderr)
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--scenario", type=int, choices=[1, 2, 3], required=True)
+    p.add_argument("--scenario", type=int, choices=[1, 2, 3])
     p.add_argument(
         "--strategy",
         help="module in strategies/ containing class Strategy (default: default)",
@@ -36,7 +81,18 @@ def main(argv: list[str] | None = None) -> int:
         help="resume an existing game by gameId; replays logs to rebuild strategy state",
         default=None,
     )
+    p.add_argument(
+        "--analyze-log",
+        help="analyze a log file and show attribute combination statistics",
+        default=None,
+    )
     args = p.parse_args(argv)
+
+    if args.analyze_log:
+        return analyze_log(args.analyze_log)
+
+    if not args.scenario:
+        p.error("--scenario is required when not using --analyze-log")
 
     player_id = os.getenv("PLAYER_ID")
     if not player_id:
