@@ -3,8 +3,9 @@
 - Run: `export PLAYER_ID=<uuid>; nix run . -- --scenario 1 [--strategy default]`
 - Resume: `nix run . -- --scenario 1 --resume <GAME_ID> [--strategy default]`
 - Strategies live in `./strategies` and must define class `Strategy`.
-- Loader resolves `--strategy <name>` to `strategies.<name>.Strategy`.
- - Logging: each run streams NDJSON to `./logs/scenario{1,2,3}/<GAME_ID>.txt` (one `{attribute: boolean}` per line).
+ - Loader resolves `--strategy <name>` to `strategies.<name>.Strategy`.
+ - Logging (files): each run streams NDJSON to `./logs/scenario{1,2,3}/<GAME_ID>.txt` (one `{attribute: boolean}` per line).
+ - Logging (stdout): prints `game_id: <UUID>` on start/resume and `decision: idx=<N> accept=<True|False>` for each decision.
    - On resume, the client replays attributes from this log to rebuild strategy state before sending new decisions.
 
 ## Write a Strategy

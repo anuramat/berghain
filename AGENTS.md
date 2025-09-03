@@ -14,7 +14,8 @@
 - Quick dev run (timeout): `timeout 5s env PLAYER_ID=$PLAYER_ID nix run . -- --scenario 1 --strategy default || true`.
 - `nix flake check`: evaluates flake and runs format check.
 - `nix develop`: enter dev shell with Python and tools.
- - Logs: each run streams NDJSON to `logs/scenario{1,2,3}/<GAME_ID>.txt` (one `{attribute: boolean}` per line).
+ - Logs (files): each run streams NDJSON to `logs/scenario{1,2,3}/<GAME_ID>.txt` (one `{attribute: boolean}` per line).
+ - Logs (stdout): prints `game_id: <UUID>` on start/resume and `decision: idx=<N> accept=<True|False>` per decision.
 
 ## Coding Style & Naming Conventions
 - Python formatting via `nix fmt` (treefmt: black + isort).
