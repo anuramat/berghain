@@ -38,6 +38,12 @@
               tqdm
               typer
             ];
+          app = pkgs.writeShellApplication {
+            name = "berghain";
+            text = ''
+              exec ${pkgs.python3}/bin/python ${./berghain/main.py} "$@"
+            '';
+          };
         in
         {
           _module.args.pkgs = import nixpkgs {
@@ -59,6 +65,12 @@
             black.enable = true;
             isort.enable = true;
             nixfmt.enable = true;
+          };
+
+          packages.default = app;
+          apps.default = {
+            type = "app";
+            program = "${app}/bin/berghain";
           };
         };
     };
