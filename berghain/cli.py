@@ -22,6 +22,11 @@ def main(argv: list[str] | None = None) -> int:
         help="module in strategies/ containing class Strategy (default: default)",
         default=None,
     )
+    p.add_argument(
+        "--resume",
+        help="resume an existing game by gameId; replays logs to rebuild strategy state",
+        default=None,
+    )
     args = p.parse_args(argv)
 
     player_id = os.getenv("PLAYER_ID")
@@ -29,20 +34,45 @@ def main(argv: list[str] | None = None) -> int:
         print("PLAYER_ID env var is required", file=sys.stderr)
         return 1
 
-    game = new_game(args.scenario, player_id)
+    # Always fetch constraints/stats to construct the strategy deterministically
+    meta = new_game(args.scenario, player_id)
     strategy = load_strategy(
         args.strategy,
         args.scenario,
-        game.get("constraints"),
-        game.get("attributeStatistics"),
+        meta.get("constraints"),
+        meta.get("attributeStatistics"),
     )
 
-    game_id = game["gameId"]
     log_dir = Path("logs") / f"scenario{args.scenario}"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / f"{game_id}.txt"
 
-    r = decide_and_next(game_id, 0, None)
+    if args.resume:
+        game_id = args.resume
+        log_path = log_dir / f"{game_id}.txt"
+        # Prime strategy by replaying attributes from logs up to server progress
+        r = decide_and_next(game_id, 0, None)
+        if r.get("status") != "running":
+            if r.get("status") == "completed":
+                print("completed: rejectedCount=", r.get("rejectedCount"))
+                return 0
+            print("failed:", r)
+            return 2
+        progress = (r.get("admittedCount") or 0) + (r.get("rejectedCount") or 0)
+        if log_path.exists():
+            with log_path.open() as f:
+                for i, line in enumerate(f):
+                    if i >= progress:
+                        break
+                    try:
+                        strategy.decide(json.loads(line))
+                    except Exception:
+                        break
+    else:
+        game = meta
+        game_id = game["gameId"]
+        log_path = log_dir / f"{game_id}.txt"
+        r = decide_and_next(game_id, 0, None)
+
     with log_path.open("a") as lf:
         while r.get("status") == "running":
             person = r["nextPerson"]
