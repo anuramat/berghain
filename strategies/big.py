@@ -206,7 +206,7 @@ class _DPEnv:
     patterns: List[Tuple[Tuple[int, ...], float]]  # list of (gamma, prob)
 
 
-class MaxProbQuotaDPStrategy(BaseStrategy):
+class Strategy(BaseStrategy):
     """Optimal DP strategy with max-entropy arrival model (m ≤ 6).
 
     - Uses the joint distribution from `fit_maxent_binary_joint` aggregated to
