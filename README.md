@@ -15,8 +15,7 @@ class Strategy(BaseStrategy):
     def __init__(self, constraints, attribute_statistics):
         super().__init__(constraints, attribute_statistics)
 
-    def decide(self, person: dict) -> bool:
-        attrs = person["attributes"]
+    def decide(self, attrs: dict[str, bool]) -> bool:
         return attrs.get("well_dressed", False)
 ```
 

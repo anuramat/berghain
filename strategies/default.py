@@ -18,6 +18,6 @@ class Strategy(BaseStrategy):
         )
         super().__init__(constraints, attribute_statistics)
 
-    def decide(self, person: dict) -> bool:
-        print("person:", json.dumps(person, separators=(",", ":")))
+    def decide(self, attrs: dict[str, bool]) -> bool:
+        print("attrs:", json.dumps(attrs, separators=(",", ":")))
         return random.choice([True, False])
