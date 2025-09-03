@@ -36,6 +36,7 @@
               plotly
               pytest
               tqdm
+              typer
             ];
         in
         {
