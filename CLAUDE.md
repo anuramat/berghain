@@ -3,3 +3,5 @@
 @AGENTS.md
 
 @CHALLENGE.md
+
+@NOTES.md
