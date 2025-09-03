@@ -10,6 +10,13 @@ from urllib.error import HTTPError
 from .api import decide_and_next, new_game
 
 
+def format_decision_log(idx: int, decision: bool, attrs: dict[str, bool]) -> str:
+    action = "accept" if decision else "reject"
+    true_attrs = [attr for attr, value in attrs.items() if value]
+    attrs_str = " ".join(true_attrs)
+    return f"{idx:4d}: {action}; {attrs_str}"
+
+
 def load_strategy(module_name: str | None, scenario, constraints, attribute_statistics):
     mod = f"strategies.{module_name or 'default'}"
     cls = getattr(importlib.import_module(mod), "Strategy")
@@ -76,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("failed: missing attributes for expected person", file=sys.stderr)
                 return 2
             decision = strategy.decide(json.loads(lines[idx]))
-            print(f"decision: idx={idx} accept={decision}")
+            print(format_decision_log(idx, decision, json.loads(lines[idx])))
             r = decide_and_next(game_id, idx, decision)
     else:
         game = meta
@@ -93,7 +100,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             lf.flush()
             decision = strategy.decide(person["attributes"])
-            print(f"decision: idx={person['personIndex']} accept={decision}")
+            print(
+                format_decision_log(
+                    person["personIndex"], decision, person["attributes"]
+                )
+            )
             r = decide_and_next(game_id, person["personIndex"], decision)
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))
