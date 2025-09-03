@@ -73,8 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     while r.get("status") == "running":
         person = r["nextPerson"]
         decision = strategy(person, ctx)
-        next_idx = person["personIndex"] + 1
-        r = decide_and_next(ctx["gameId"], next_idx, decision)
+        r = decide_and_next(ctx["gameId"], person["personIndex"], decision)
 
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))
