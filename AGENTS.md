@@ -14,6 +14,7 @@
 - Quick dev run (timeout): `timeout 5s env PLAYER_ID=$PLAYER_ID nix run . -- --scenario 1 --strategy default || true`.
 - `nix flake check`: evaluates flake and runs format check.
 - `nix develop`: enter dev shell with Python and tools.
+ - Logs: each run streams NDJSON to `logs/scenario{1,2,3}/<GAME_ID>.txt` (one `{attribute: boolean}` per line).
 
 ## Coding Style & Naming Conventions
 - Python formatting via `nix fmt` (treefmt: black + isort).
@@ -34,6 +35,7 @@
 ## Security & Configuration Tips
 - Secrets: set `PLAYER_ID` via environment; avoid committing IDs or logs with sensitive data.
 - Network calls use HTTPS only; base URL is constant in `api.py`.
+ - Logs are written during the run; files may be partial if interrupted.
 
 ## Agent-Specific Instructions
 - New strategies only specify module name with `--strategy <name>`; loader resolves `strategies.<name>.Strategy`.
