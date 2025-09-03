@@ -4,6 +4,8 @@ import json
 import os
 import sys
 from pathlib import Path
+import re
+from urllib.error import HTTPError
 
 from .api import decide_and_next, new_game
 
@@ -49,24 +51,31 @@ def main(argv: list[str] | None = None) -> int:
     if args.resume:
         game_id = args.resume
         log_path = log_dir / f"{game_id}.txt"
-        # Prime strategy by replaying attributes from logs up to server progress
-        r = decide_and_next(game_id, 0, None)
-        if r.get("status") != "running":
-            if r.get("status") == "completed":
-                print("completed: rejectedCount=", r.get("rejectedCount"))
-                return 0
-            print("failed:", r)
-            return 2
-        progress = (r.get("admittedCount") or 0) + (r.get("rejectedCount") or 0)
-        if log_path.exists():
-            with log_path.open() as f:
-                for i, line in enumerate(f):
-                    if i >= progress:
-                        break
-                    try:
-                        strategy.decide(json.loads(line))
-                    except Exception:
-                        break
+        try:
+            r = decide_and_next(game_id, 0, None)
+        except HTTPError as e:
+            body = e.read().decode(errors="ignore")
+            try:
+                msg = json.loads(body).get("error", "")
+            except Exception:
+                msg = body
+            m = re.search(r"Expected person (\d+)", msg or "")
+            if not m:
+                print("failed:", msg or str(e))
+                return 2
+            idx = int(m.group(1))
+            lines = []
+            if log_path.exists():
+                with log_path.open() as f:
+                    lines = [ln.strip() for ln in f if ln.strip()]
+            # Rebuild state by replaying prior people
+            for i in range(min(idx, len(lines))):
+                strategy.decide(json.loads(lines[i]))
+            if idx >= len(lines):
+                print("failed: missing attributes for expected person", file=sys.stderr)
+                return 2
+            decision = strategy.decide(json.loads(lines[idx]))
+            r = decide_and_next(game_id, idx, decision)
     else:
         game = meta
         game_id = game["gameId"]
