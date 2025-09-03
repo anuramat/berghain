@@ -8,10 +8,10 @@ from pathlib import Path
 from .api import decide_and_next, new_game
 
 
-def load_strategy(module_name: str | None, constraints, attribute_statistics):
+def load_strategy(module_name: str | None, scenario, constraints, attribute_statistics):
     mod = f"strategies.{module_name or 'default'}"
     cls = getattr(importlib.import_module(mod), "Strategy")
-    return cls(constraints, attribute_statistics)
+    return cls(scenario, constraints, attribute_statistics)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,7 +31,10 @@ def main(argv: list[str] | None = None) -> int:
 
     game = new_game(args.scenario, player_id)
     strategy = load_strategy(
-        args.strategy, game.get("constraints"), game.get("attributeStatistics")
+        args.strategy,
+        args.scenario,
+        game.get("constraints"),
+        game.get("attributeStatistics"),
     )
 
     game_id = game["gameId"]

@@ -5,7 +5,7 @@ from berghain.strategy_base import BaseStrategy
 
 
 class Strategy(BaseStrategy):
-    def __init__(self, constraints, attribute_statistics):
+    def __init__(self, scenario, constraints, attribute_statistics):
         print(
             "strategy init:",
             json.dumps(
@@ -16,7 +16,7 @@ class Strategy(BaseStrategy):
                 separators=(",", ":"),
             ),
         )
-        super().__init__(constraints, attribute_statistics)
+        super().__init__(scenario, constraints, attribute_statistics)
 
     def decide(self, attrs: dict[str, bool]) -> bool:
         print("attrs:", json.dumps(attrs, separators=(",", ":")))
