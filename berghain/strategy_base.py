@@ -1,4 +1,7 @@
-class BaseStrategy:
+from abc import ABC, abstractmethod
+
+
+class BaseStrategy(ABC):
     min_required: dict[str, int]
     relative_frequencies: dict[str, float]
     correlations: dict[str, dict[str, float]]
@@ -9,3 +12,6 @@ class BaseStrategy:
             "relativeFrequencies", {}
         )
         self.correlations = (attribute_statistics or {}).get("correlations", {})
+
+    @abstractmethod
+    def decide(self, person: dict) -> bool: ...
