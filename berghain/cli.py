@@ -37,15 +37,18 @@ def main(argv: list[str] | None = None) -> int:
     game_id = game["gameId"]
     log_dir = Path("logs") / f"scenario{args.scenario}"
     log_dir.mkdir(parents=True, exist_ok=True)
-    seen: list[dict] = []
-    r = decide_and_next(game_id, 0, None)
-    while r.get("status") == "running":
-        person = r["nextPerson"]
-        seen.append(person.get("attributes", {}))
-        decision = strategy.decide(person)
-        r = decide_and_next(game_id, person["personIndex"], decision)
+    log_path = log_dir / f"{game_id}.txt"
 
-    (log_dir / f"{game_id}.txt").write_text(json.dumps(seen, separators=(",", ":")))
+    r = decide_and_next(game_id, 0, None)
+    with log_path.open("a") as lf:
+        while r.get("status") == "running":
+            person = r["nextPerson"]
+            lf.write(
+                json.dumps(person.get("attributes", {}), separators=(",", ":")) + "\n"
+            )
+            lf.flush()
+            decision = strategy.decide(person)
+            r = decide_and_next(game_id, person["personIndex"], decision)
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))
         return 0
