@@ -2,7 +2,6 @@ import argparse
 import importlib
 import json
 import os
-import random
 import sys
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
@@ -43,30 +42,11 @@ class BaseStrategy:
         self.correlations = (attribute_statistics or {}).get("correlations", {})
 
 
-class DefaultStrategy(BaseStrategy):
-    def __init__(self, constraints, attribute_statistics):
-        print(
-            "strategy init:",
-            json.dumps(
-                {
-                    "constraints": constraints,
-                    "attributeStatistics": attribute_statistics,
-                },
-                separators=(",", ":"),
-            ),
-        )
-        super().__init__(constraints, attribute_statistics)
-
-    def decide(self, person: dict) -> bool:
-        print("person:", json.dumps(person, separators=(",", ":")))
-        return random.choice([True, False])
-
-
 def load_strategy(
     spec: str | None, constraints: list[dict], attribute_statistics: dict
 ):
     if not spec:
-        return DefaultStrategy(constraints, attribute_statistics)
+        spec = "default_strategy:DefaultStrategy"
     mod_name, _, cls_name = spec.partition(":")
     if not mod_name or not cls_name:
         raise SystemExit("--strategy must be 'module:ClassName'")
@@ -77,7 +57,11 @@ def load_strategy(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", type=int, choices=[1, 2, 3], required=True)
-    parser.add_argument("--strategy", help="module:ClassName", default=None)
+    parser.add_argument(
+        "--strategy",
+        help="module:ClassName (default: default_strategy:DefaultStrategy)",
+        default=None,
+    )
     args = parser.parse_args(argv)
 
     player_id = os.getenv("PLAYER_ID")
