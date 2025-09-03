@@ -1,10 +1,10 @@
 import json
 import random
 
-from .main import BaseStrategy
+from berghain.strategy_base import BaseStrategy
 
 
-class DefaultStrategy(BaseStrategy):
+class Strategy(BaseStrategy):
     def __init__(self, constraints, attribute_statistics):
         print(
             "strategy init:",

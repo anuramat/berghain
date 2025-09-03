@@ -42,7 +42,7 @@
             name = "berghain";
             text = ''
               export PYTHONPATH=${toString ./.}
-              exec ${pkgs.python3}/bin/python -m berghain.main "$@"
+              exec ${pkgs.python3}/bin/python -m berghain.cli "$@"
             '';
           };
         in
