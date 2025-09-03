@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(person.get("attributes", {}), separators=(",", ":")) + "\n"
             )
             lf.flush()
-            decision = strategy.decide(person)
+            decision = strategy.decide(person["attributes"])
             r = decide_and_next(game_id, person["personIndex"], decision)
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))
