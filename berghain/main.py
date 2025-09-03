@@ -34,25 +34,50 @@ def decide_and_next(game_id: str, person_index: int, accept: bool | None) -> dic
     return _get_json("decide-and-next", p)
 
 
-def default_strategy_decide(person: dict, ctx: dict) -> bool:
-    print("strategy ctx:", json.dumps(ctx, separators=(",", ":")))
-    print("person:", json.dumps(person, separators=(",", ":")))
-    return random.choice([True, False])
+class BaseStrategy:
+    def __init__(self, constraints: list[dict], attribute_statistics: dict):
+        self.min_required = {c["attribute"]: c["minCount"] for c in (constraints or [])}
+        self.relative_frequencies = (attribute_statistics or {}).get(
+            "relativeFrequencies", {}
+        )
+        self.correlations = (attribute_statistics or {}).get("correlations", {})
 
 
-def load_strategy(spec: str | None):
+class DefaultStrategy(BaseStrategy):
+    def __init__(self, constraints, attribute_statistics):
+        print(
+            "strategy init:",
+            json.dumps(
+                {
+                    "constraints": constraints,
+                    "attributeStatistics": attribute_statistics,
+                },
+                separators=(",", ":"),
+            ),
+        )
+        super().__init__(constraints, attribute_statistics)
+
+    def decide(self, person: dict) -> bool:
+        print("person:", json.dumps(person, separators=(",", ":")))
+        return random.choice([True, False])
+
+
+def load_strategy(
+    spec: str | None, constraints: list[dict], attribute_statistics: dict
+):
     if not spec:
-        return default_strategy_decide
-    mod_name, _, func_name = spec.partition(":")
-    if not mod_name or not func_name:
-        raise SystemExit("--strategy must be 'module:function'")
-    return getattr(importlib.import_module(mod_name), func_name)
+        return DefaultStrategy(constraints, attribute_statistics)
+    mod_name, _, cls_name = spec.partition(":")
+    if not mod_name or not cls_name:
+        raise SystemExit("--strategy must be 'module:ClassName'")
+    cls = getattr(importlib.import_module(mod_name), cls_name)
+    return cls(constraints, attribute_statistics)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", type=int, choices=[1, 2, 3], required=True)
-    parser.add_argument("--strategy", help="module:function", default=None)
+    parser.add_argument("--strategy", help="module:ClassName", default=None)
     args = parser.parse_args(argv)
 
     player_id = os.getenv("PLAYER_ID")
@@ -61,19 +86,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     game = new_game(args.scenario, player_id)
-    strategy = load_strategy(args.strategy)
+    strategy = load_strategy(
+        args.strategy, game.get("constraints"), game.get("attributeStatistics")
+    )
 
-    ctx = {
-        "gameId": game["gameId"],
-        "constraints": game.get("constraints"),
-        "attributeStatistics": game.get("attributeStatistics"),
-    }
-
-    r = decide_and_next(ctx["gameId"], 0, None)
+    game_id = game["gameId"]
+    r = decide_and_next(game_id, 0, None)
     while r.get("status") == "running":
         person = r["nextPerson"]
-        decision = strategy(person, ctx)
-        r = decide_and_next(ctx["gameId"], person["personIndex"], decision)
+        decision = strategy.decide(person)
+        r = decide_and_next(game_id, person["personIndex"], decision)
 
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))
