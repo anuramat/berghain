@@ -19,7 +19,7 @@ def _get_json(path: str, params: dict) -> dict:
     delay = 1.0
     for _ in range(8):
         try:
-            with urlopen(req, timeout=10) as r:
+            with urlopen(req, timeout=999) as r:
                 return json.loads(r.read().decode())
         except HTTPError as e:
             if e.code in (429, 500, 502, 503, 504):
