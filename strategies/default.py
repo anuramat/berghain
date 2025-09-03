@@ -1,12 +1,16 @@
 from berghain.strategy_base import BaseStrategy
 
+# "all or nothing" with known lower bound
+# XXX might want to relax, since we don't need to be top1 in isolated scenarios, only in combined score
+STRICT_UPPER_BOUND = False
+
 
 class Strategy(BaseStrategy):
     def __init__(self, scenario, constraints, attribute_statistics):
         super().__init__(scenario, constraints, attribute_statistics)
         self.deficits = dict(self.min_required)
         self.accepted_count = 0
-        self.remaining_budget = self.max_rejections
+        self.remaining_budget = self.max_rejections - 1
 
     def decide(self, attrs: dict[str, bool]) -> bool:
         person_attributes: list[str] = [k for k, v in attrs.items() if v]
@@ -17,15 +21,16 @@ class Strategy(BaseStrategy):
 
         unmet_quotas: list[str] = [k for k, v in self.deficits.items() if v > 0]
         if not unmet_quotas:
+            # atp we just need to get 1k in total
             return self._accept(attrs)
 
         contributes_to_deficit = any(k in unmet_quotas for k in attrs)
         if not contributes_to_deficit:
+            # person is useless, safe to reject
             return self._reject()
 
-        # "all or nothing" with known lower bound
-        # XXX might want to relax, since we don't need to be top1 in isolated scenarios, only in combined score
-        if self.remaining_budget == 0:
+        if STRICT_UPPER_BOUND and self.remaining_budget == 0:
+            # if we reject, we fail to improve the bound
             return self._accept(attrs)
 
         # XXX main logic starts here
