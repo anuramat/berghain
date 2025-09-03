@@ -2,9 +2,9 @@ import argparse
 import importlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
-import re
 from urllib.error import HTTPError
 
 from .api import decide_and_next, new_game

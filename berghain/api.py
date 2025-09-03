@@ -1,8 +1,8 @@
 import json
 import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
 BASE_URL = "https://berghain.challenges.listenlabs.ai/"
 
