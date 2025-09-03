@@ -1,7 +1,9 @@
 import argparse
 import importlib
+import json
 import os
 import sys
+from pathlib import Path
 
 from .api import decide_and_next, new_game
 
@@ -33,12 +35,17 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     game_id = game["gameId"]
+    log_dir = Path("logs") / f"scenario{args.scenario}"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    seen: list[dict] = []
     r = decide_and_next(game_id, 0, None)
     while r.get("status") == "running":
         person = r["nextPerson"]
+        seen.append(person.get("attributes", {}))
         decision = strategy.decide(person)
         r = decide_and_next(game_id, person["personIndex"], decision)
 
+    (log_dir / f"{game_id}.txt").write_text(json.dumps(seen, separators=(",", ":")))
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))
         return 0
