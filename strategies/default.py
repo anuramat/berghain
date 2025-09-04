@@ -27,28 +27,48 @@ class Strategy(BaseStrategy):
         if len(attrs) == len(self.deficits):
             return self._accept(attrs, reason="all attributes")
 
-        if self._satisfiability_logproba_diff() < 0:
+        if self._satisfiability_logproba_diff(attrs) < 0:
             return self._reject(reason="proba")
         return self._accept(attrs, reason="proba")
 
-    def _satisfiability_logproba_diff(self) -> float:
-        # TODO
-        deficits_if_accept = ...
-        deficits_if_reject = ...
-        return self._satisfiability_logproba(
-            deficits_if_accept
-        ) - self._satisfiability_logproba(deficits_if_reject)
+    def _satisfiability_logproba_diff(self, attrs: list[str]) -> float:
+        """Compare win log-probability if we accept vs reject this person."""
+        deficits_if_reject = dict(self.deficits)
+        deficits_if_accept = dict(deficits_if_reject)
+        for k in attrs:
+            if k in deficits_if_accept and deficits_if_accept[k] > 0:
+                deficits_if_accept[k] -= 1
 
-    def _satisfiability_logproba(self, deficits) -> float:
-        """
-        Probability that among next `remaining_budget + remaining_places` people
-        there exists a subset of size `remaining_places` that clears all deficits.
-        """
-        # logprobas = sum(binom.logsf(deficit - 1, remaining, proba))
-        return 0.0
+        remaining_if_accept = (self.remaining_budget) + (self.remaining_places - 1)
+        remaining_if_reject = (self.remaining_budget - 1) + (self.remaining_places)
+
+        return self._satisfiability_logproba(
+            deficits_if_accept, remaining_if_accept
+        ) - self._satisfiability_logproba(deficits_if_reject, remaining_if_reject)
+
+    def _satisfiability_logproba(
+        self, deficits: dict[str, int], remaining: int
+    ) -> float:
+        """Approximate log P(all deficits satisfiable) with independent binomials."""
+        if remaining <= 0:
+            return float("-inf") if any(v > 0 for v in deficits.values()) else 0.0
+        logp = 0.0
+        for attr, need in deficits.items():
+            if need <= 0:
+                continue
+            p = float(self.relative_frequencies.get(attr, 0.0))
+            if p <= 0.0:
+                return float("-inf")
+            logp += float(binom.logsf(need - 1, remaining, p))
+        return logp
 
     def _joint(self):
-        pass
+        """Return joint distribution estimate as {frozenset(attrs): prob}."""
+        je = self.joint_estimate
+        if not je:
+            return {}
+        total = max(1, int(je.get("total", 1)))
+        return {k: v / total for k, v in je.get("joint_counts", {}).items()}
 
     def _reject(self, reason: str = "") -> bool:
         if reason:
@@ -68,4 +88,5 @@ class Strategy(BaseStrategy):
         return True
 
     def log(self):
-        pass  # TODO move unconditional logging here
+        """Hook for unconditional logging (no-op)."""
+        return None
