@@ -47,33 +47,36 @@ class Strategy(BaseStrategy):
 
         # good idea: think about constraint satisfaction probas
         # FUCK simplified idea: probability that there will be `deficit[k]` people with attribute `k` out of the next `remaining_budget + remaining_places` people
-        remaining = self.remaining_budget + self.remaining_places
+        remaining = (
+            max(0, self.remaining_budget) + self.remaining_places
+        )  # FUCK idk if this makes sense
         satisfaction_probas = {  # TODO actually "satisfiability", rename
-            k: float(binom.sf(v, remaining, self.relative_frequencies[k]))
+            k: binom.logsf(v, remaining, self.relative_frequencies[k])
             for k, v in self.deficits.items()
         }  # TODO might be v-1 actually, check
-        total_proba = prod(
+        print("---", remaining, self.deficits, satisfaction_probas)  # TODO remove
+        total_proba = sum(
             satisfaction_probas.values()
         )  # FUCK we're basically assuming here rejects are equiv to accepts; feels ok
         # FUCK ideally we would calculate reject vs accept, but we can't without a joint, so compare accept to average case or smth; feels ok
         accept_probas = {
-            k: float(
-                binom.sf(
-                    v - (1 if k in attrs else 0),
-                    remaining - 1,
-                    self.relative_frequencies[k],
-                )
+            k: binom.logsf(
+                v - (1 if k in attrs else 0),
+                remaining - 1,
+                self.relative_frequencies[k],
             )
             for k, v in self.deficits.items()
         }
-        # TODO add threshold to cope with FUCKs
-        if prod(accept_probas.values()) < total_proba:
-            return self._reject("proba rule")
-        return self._accept("fell through", attrs)
+        proba_diff = sum(accept_probas.values()) - total_proba  # - 0.05 # scenario 1
+        if proba_diff < 0:
+            return self._reject("decreases succ proba")
+        return self._accept("doesn't decrease succ proba", attrs)
 
     def _reject(self, reason: str) -> bool:
         print(reason)
         self.remaining_budget -= 1
+        if self.remaining_budget == 0:
+            print("--- rejection budget exceeded ---")
         return False
 
     def _accept(self, reason: str, attrs: list[str]) -> bool:
