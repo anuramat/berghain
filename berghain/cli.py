@@ -42,6 +42,7 @@ def analyze_log(path: str) -> int:
 
     joint_counts: dict[frozenset[str], int] = defaultdict(int)
     attr_true: dict[str, int] = defaultdict(int)
+    seen: set[str] = set()
     total = 0
     skipped = 0
 
@@ -60,6 +61,7 @@ def analyze_log(path: str) -> int:
                     if not isinstance(obj, dict):
                         skipped += 1
                         continue
+                    seen.update(obj.keys())
                     true_set = frozenset(k for k, v in obj.items() if v is True)
                     for k in true_set:
                         attr_true[k] += 1
@@ -73,13 +75,13 @@ def analyze_log(path: str) -> int:
         print("Error: no valid data found", file=sys.stderr)
         return 1
 
-    attrs = sorted(attr_true.keys())
+    attrs = sorted(seen)
 
     print(f"Analyzed {len(files)} file(s); samples={total}; skipped={skipped}")
     print()
     print("Marginals (P=True):")
     for a in attrs:
-        c = attr_true[a]
+        c = attr_true.get(a, 0)
         print(f"{a}: {c/total:.4f} ({c})")
     print()
     print("Joint distribution:")

@@ -1,4 +1,7 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
+
+from .analysis import compute_joint_estimate
 
 MAX_REJECTIONS: dict[int, int] = {
     # depending on scenario
@@ -25,7 +28,8 @@ class BaseStrategy(ABC):
         )
         self.correlations = (attribute_statistics or {}).get("correlations", {})
         self.max_rejections = MAX_REJECTIONS[scenario]
-        self.joint_estimate = None
+        # Always load joint estimate from accumulated logs for the scenario
+        self.joint_estimate = compute_joint_estimate(str(Path("logs") / f"scenario{scenario}"))
 
     @abstractmethod
     def decide(self, attrs: dict[str, bool]) -> bool: ...
