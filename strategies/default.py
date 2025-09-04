@@ -59,7 +59,7 @@ class Strategy(BaseStrategy):
             )
             for k, v in self.deficits.items()
         }
-        proba_diff = sum(accept_probas.values()) - total_proba  # - 0.05 # scenario 1
+        proba_diff = sum(accept_probas.values()) - total_proba
         if proba_diff < 0:
             return self._reject("decreases succ proba")
         return self._accept("doesn't decrease succ proba", attrs)
