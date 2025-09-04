@@ -68,6 +68,88 @@ def analyze_log(log_file: str) -> int:
     return 0
 
 
+def test_run(log_file: str, scenario: int, strategy_name: str) -> int:
+    if not scenario:
+        print("Error: --scenario is required for test run", file=sys.stderr)
+        return 1
+
+    # Read meta from cache (test runs never call API)
+    log_dir = Path("logs") / f"scenario{scenario}"
+    meta_cache_path = log_dir / "meta.json"
+
+    if not meta_cache_path.exists():
+        print(
+            f"Error: meta cache not found at {meta_cache_path}. Run a real game first to generate cache.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        with meta_cache_path.open("r") as f:
+            meta = json.load(f)
+
+        strategy = load_strategy(
+            strategy_name,
+            scenario,
+            meta.get("constraints"),
+            meta.get("attributeStatistics"),
+        )
+    except Exception as e:
+        print(f"Error initializing strategy: {e}", file=sys.stderr)
+        return 1
+
+    total_accepts = 0
+    total_rejects = 0
+    accepted_attributes = {}
+
+    for attr in strategy.min_required.keys():
+        accepted_attributes[attr] = 0
+
+    try:
+        with open(log_file, "r") as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    attrs = json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(
+                        f"Error parsing JSON on line {line_num}: {e}", file=sys.stderr
+                    )
+                    return 1
+
+                decision = strategy.decide(attrs)
+
+                if decision:
+                    total_accepts += 1
+                    for attr, value in attrs.items():
+                        if value and attr in accepted_attributes:
+                            accepted_attributes[attr] += 1
+                    if total_accepts >= 1000:
+                        break
+                else:
+                    total_rejects += 1
+
+    except FileNotFoundError:
+        print(f"Error: log file not found: {log_file}", file=sys.stderr)
+        return 1
+
+    print(f"Test run results for {log_file}:")
+    print(f"Total accepts: {total_accepts}")
+    print(f"Total rejects: {total_rejects}")
+    print()
+
+    print("Attribute completion rates:")
+    for attr, required in strategy.min_required.items():
+        actual = accepted_attributes[attr]
+        rate = actual / required if required > 0 else 0
+        print(f"{attr}: {actual}/{required} ({rate:.2%})")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--scenario", type=int, choices=[1, 2, 3])
@@ -86,13 +168,21 @@ def main(argv: list[str] | None = None) -> int:
         help="analyze a log file and show attribute combination statistics",
         default=None,
     )
+    p.add_argument(
+        "--test-run",
+        help="test run strategy on a log file without API calls",
+        default=None,
+    )
     args = p.parse_args(argv)
 
     if args.analyze_log:
         return analyze_log(args.analyze_log)
 
+    if args.test_run:
+        return test_run(args.test_run, args.scenario, args.strategy)
+
     if not args.scenario:
-        p.error("--scenario is required when not using --analyze-log")
+        p.error("--scenario is required when not using --analyze-log or --test-run")
 
     player_id = os.getenv("PLAYER_ID")
     if not player_id:
@@ -110,6 +200,17 @@ def main(argv: list[str] | None = None) -> int:
 
     log_dir = Path("logs") / f"scenario{args.scenario}"
     log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save meta to cache (real runs always write, never read)
+    meta_cache_path = log_dir / "meta.json"
+    with meta_cache_path.open("w") as f:
+        json.dump(
+            {
+                "constraints": meta.get("constraints"),
+                "attributeStatistics": meta.get("attributeStatistics"),
+            },
+            f,
+        )
 
     if args.resume:
         game_id = args.resume

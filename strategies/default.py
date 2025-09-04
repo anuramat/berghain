@@ -61,16 +61,18 @@ class Strategy(BaseStrategy):
             for k, v in self.deficits.items()
         }
         # TODO add threshold to cope with FUCKs
-        return prod(accept_probas.values()) > total_proba
+        if prod(accept_probas.values()) < total_proba:
+            return self._reject()
+        return self._accept(attrs)
 
     def _reject(self) -> bool:
         self.remaining_budget -= 1
         return False
 
-    def _accept(self, attrs) -> bool:
-        self.accepted_count += 1
-        for k, v in attrs.items():
-            if v and k in self.deficits and self.deficits[k] > 0:
+    def _accept(self, attrs: list[str]) -> bool:
+        self.remaining_places -= 1
+        for k in attrs:
+            if k in self.deficits and self.deficits[k] > 0:
                 self.deficits[k] -= 1
         return True
 
