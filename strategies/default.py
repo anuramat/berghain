@@ -1,3 +1,7 @@
+from math import prod, sqrt
+
+from scipy.stats import binom
+
 from berghain.strategy_base import BaseStrategy
 
 # "all or nothing" with known lower bound
@@ -9,7 +13,7 @@ class Strategy(BaseStrategy):
     def __init__(self, scenario, constraints, attribute_statistics):
         super().__init__(scenario, constraints, attribute_statistics)
         self.deficits = dict(self.min_required)
-        self.accepted_count = 0
+        self.remaining_places = 1000
         self.remaining_budget = self.max_rejections - 1
 
     def decide(self, attrs: dict[str, bool]) -> bool:
@@ -34,7 +38,30 @@ class Strategy(BaseStrategy):
             return self._accept(attrs)
 
         # XXX main logic starts here
-        return self._accept(attrs)
+
+        # good idea: think about constraint satisfaction probas
+        # FUCK simplified idea: probability that there will be `deficit[k]` people with attribute `k` out of the next `remaining_budget + remaining_places` people
+        remaining = self.remaining_budget + self.remaining_places
+        satisfaction_probas = {  # TODO actually "satisfiability", rename
+            k: float(binom.sf(v, remaining, self.relative_frequencies[k]))
+            for k, v in self.deficits
+        }  # TODO might be v-1 actually, check
+        total_proba = prod(
+            satisfaction_probas.values()
+        )  # FUCK we're basically assuming here rejects are equiv to accepts; feels ok
+        # FUCK ideally we would calculate reject vs accept, but we can't without a joint, so compare accept to average case or smth; feels ok
+        accept_probas = {
+            k: float(
+                binom.sf(
+                    v - (1 if k in attrs else 0),
+                    remaining - 1,
+                    self.relative_frequencies[k],
+                )
+            )
+            for k, v in self.deficits.items()
+        }
+        # TODO add threshold to cope with FUCKs
+        return prod(accept_probas.values()) > total_proba
 
     def _reject(self) -> bool:
         self.remaining_budget -= 1
@@ -49,3 +76,8 @@ class Strategy(BaseStrategy):
 
     def log(self):
         pass  # TODO print self...
+
+    def _expected_change(self, attrs, target) -> int:
+        if target in attrs:
+            return 1
+        return 0
