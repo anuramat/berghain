@@ -23,48 +23,73 @@ def load_strategy(module_name: str | None, scenario, constraints, attribute_stat
     return cls(scenario, constraints, attribute_statistics)
 
 
-def analyze_log(log_file: str) -> int:
+def analyze_log(path: str) -> int:
     from collections import defaultdict
+    from pathlib import Path
 
-    counts = defaultdict(int)
+    p = Path(path)
+    files: list[Path]
+    if p.is_dir():
+        files = sorted(x for x in p.iterdir() if x.is_file() and x.suffix == ".txt")
+        if not files:
+            print(f"Error: no .txt logs in directory: {p}", file=sys.stderr)
+            return 1
+    elif p.is_file():
+        files = [p]
+    else:
+        print(f"Error: path not found: {p}", file=sys.stderr)
+        return 1
+
+    joint_counts: dict[frozenset[str], int] = defaultdict(int)
+    attr_true: dict[str, int] = defaultdict(int)
     total = 0
+    skipped = 0
 
-    try:
-        with open(log_file, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                attrs = json.loads(line)
-                true_attrs = tuple(
-                    sorted(attr for attr, value in attrs.items() if value)
-                )
-                counts[true_attrs] += 1
-                total += 1
-    except FileNotFoundError:
-        print(f"Error: log file not found: {log_file}", file=sys.stderr)
+    for fp in files:
+        try:
+            with fp.open("r") as f:
+                for line in f:
+                    s = line.strip()
+                    if not s:
+                        continue
+                    try:
+                        obj = json.loads(s)
+                    except Exception:
+                        skipped += 1
+                        continue
+                    if not isinstance(obj, dict):
+                        skipped += 1
+                        continue
+                    true_set = frozenset(k for k, v in obj.items() if v is True)
+                    for k in true_set:
+                        attr_true[k] += 1
+                    joint_counts[true_set] += 1
+                    total += 1
+        except FileNotFoundError:
+            print(f"Error: log file not found: {fp}", file=sys.stderr)
+            return 1
+
+    if total == 0:
+        print("Error: no valid data found", file=sys.stderr)
         return 1
-    except json.JSONDecodeError as e:
-        print(f"Error: invalid JSON in log file: {e}", file=sys.stderr)
-        return 1
 
-    print(f"Attribute combination statistics from {log_file}:")
+    attrs = sorted(attr_true.keys())
+
+    print(f"Analyzed {len(files)} file(s); samples={total}; skipped={skipped}")
     print()
-
-    for attrs, count in sorted(counts.items()):
-        if not attrs:
-            print(f"No attributes: {count}")
-        else:
-            attrs_str = ", ".join(attrs)
-            print(f"Only {attrs_str}: {count}")
-
+    print("Marginals (P=True):")
+    for a in attrs:
+        c = attr_true[a]
+        print(f"{a}: {c/total:.4f} ({c})")
     print()
-    print(f"Total: {total}")
-
-    verification = sum(counts.values())
-    if verification != total:
-        print(f"Warning: sum mismatch {verification} != {total}", file=sys.stderr)
-
+    print("Joint distribution:")
+    items = sorted(
+        joint_counts.items(),
+        key=lambda kv: (-kv[1], ",".join(sorted(kv[0]))),
+    )
+    for true_set, c in items:
+        label = "∅" if not true_set else ",".join(sorted(true_set))
+        print(f"true={{{label}}} | P {c/total:.4f} ({c})")
     return 0
 
 
@@ -168,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--analyze-log",
-        help="analyze a log file and show attribute combination statistics",
+        help="analyze a log file or directory (.txt) and show probabilities",
         default=None,
     )
     p.add_argument(
