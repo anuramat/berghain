@@ -122,6 +122,8 @@ def test_run(log_file: str, scenario: int, strategy_name: str) -> int:
 
                 decision = strategy.decide(attrs)
 
+                print(format_decision_log(line_num - 1, decision, attrs))
+
                 if decision:
                     total_accepts += 1
                     for attr, value in attrs.items():
@@ -136,11 +138,12 @@ def test_run(log_file: str, scenario: int, strategy_name: str) -> int:
         print(f"Error: log file not found: {log_file}", file=sys.stderr)
         return 1
 
-    print(f"Test run results for {log_file}:")
-    print(f"Total accepts: {total_accepts}")
-    print(f"Total rejects: {total_rejects}")
-    print()
+    if total_accepts >= 1000:
+        print("completed: rejectedCount=", total_rejects)
+    else:
+        print("incomplete: venue not filled")
 
+    print()
     print("Attribute completion rates:")
     for attr, required in strategy.min_required.items():
         actual = accepted_attributes[attr]
