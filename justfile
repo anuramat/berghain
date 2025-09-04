@@ -1,4 +1,4 @@
-spam scenario="1":
+spam scenario="3":
     echo {{ scenario }}
     while true; do python -m berghain.cli --scenario {{ scenario }}; done
 
