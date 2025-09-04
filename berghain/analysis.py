@@ -55,4 +55,3 @@ def compute_joint_estimate(path: str) -> dict | None:
         "total": total,
         "joint_counts": dict(joint_counts),
     }
-

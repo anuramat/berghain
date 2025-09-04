@@ -35,9 +35,9 @@ class Strategy(BaseStrategy):
         # TODO
         deficits_if_accept = ...
         deficits_if_reject = ...
-        return self._satisfiability_logproba(deficits_if_accept) - self._satisfiability_logproba(
-            deficits_if_reject
-        )
+        return self._satisfiability_logproba(
+            deficits_if_accept
+        ) - self._satisfiability_logproba(deficits_if_reject)
 
     def _satisfiability_logproba(self, deficits) -> float:
         """
