@@ -1,12 +1,6 @@
-from math import prod, sqrt
-
 from scipy.stats import binom
 
 from berghain.strategy_base import BaseStrategy
-
-# "all or nothing" with known lower bound
-# XXX might want to relax, since we don't need to be top1 in isolated scenarios, only in combined score
-STRICT_UPPER_BOUND = False
 
 
 class Strategy(BaseStrategy):
@@ -39,13 +33,9 @@ class Strategy(BaseStrategy):
         if has_all_attributes:
             return self._accept("all attributes", attrs)
 
-        if STRICT_UPPER_BOUND and self.remaining_budget == 0:
-            # if we reject, we fail to improve the bound
-            return self._accept("ran out of rejects", attrs)
-
         # XXX main logic -------------------------------------------------------
 
-        # good idea: think about constraint satisfaction probas
+        # generally a good idea: think about constraint satisfaction probas
         # FUCK simplified idea: probability that there will be `deficit[k]` people with attribute `k` out of the next `remaining_budget + remaining_places` people
         remaining = (
             max(0, self.remaining_budget) + self.remaining_places
@@ -53,8 +43,10 @@ class Strategy(BaseStrategy):
         satisfaction_probas = {  # TODO actually "satisfiability", rename
             k: binom.logsf(v, remaining, self.relative_frequencies[k])
             for k, v in self.deficits.items()
-        }  # TODO might be v-1 actually, check
-        print("---", remaining, self.deficits, satisfaction_probas)  # TODO remove
+        }  # FUCK might be v-1 actually, check
+        print(
+            "---", self.remaining_budget, self.deficits, satisfaction_probas
+        )  # TODO move or remove?
         total_proba = sum(
             satisfaction_probas.values()
         )  # FUCK we're basically assuming here rejects are equiv to accepts; feels ok
@@ -88,9 +80,4 @@ class Strategy(BaseStrategy):
         return True
 
     def log(self):
-        pass  # TODO print self...
-
-    def _expected_change(self, attrs, target) -> int:
-        if target in attrs:
-            return 1
-        return 0
+        pass  # TODO move unconditional logging here
