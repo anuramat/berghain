@@ -83,8 +83,7 @@ class Strategy(BaseStrategy):
             print(reason)
         self.remaining_places -= 1
         for k in attrs:
-            if k in self.deficits and self.deficits[k] > 0:
-                self.deficits[k] -= 1
+            self.deficits[k] -= 1
         return True
 
     def log(self):
