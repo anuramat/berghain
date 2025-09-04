@@ -10,9 +10,9 @@
 
 ## Build, Test, and Development Commands
 
-- `nix run . -- --scenario <num> --strategy <name>`: runs the game.
-  - a single run takes about 15 minutes, so don't run it yourself unless
-    explicitly instructed
+- to test a strategy: `make test1`, `make test2`, `make test3` for scenario 1, 2, 3
+  - these use local test runs under the hood, so as to avoid using the API (it's
+    very slow); so ONLY use these three commands to test the strategies
 - Python and nix formatting are launched with `nix fmt`
 
 ## Strategies
