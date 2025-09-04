@@ -44,7 +44,7 @@ class Strategy(BaseStrategy):
         remaining = self.remaining_budget + self.remaining_places
         satisfaction_probas = {  # TODO actually "satisfiability", rename
             k: float(binom.sf(v, remaining, self.relative_frequencies[k]))
-            for k, v in self.deficits
+            for k, v in self.deficits.items()
         }  # TODO might be v-1 actually, check
         total_proba = prod(
             satisfaction_probas.values()
