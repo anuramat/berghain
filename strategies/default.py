@@ -23,21 +23,27 @@ class Strategy(BaseStrategy):
     def _decide(self, attrs: list[str]) -> bool:
         self.log()
 
+        # XXX obvious cases ----------------------------------------------------
+
         unmet_quotas: list[str] = [k for k, v in self.deficits.items() if v > 0]
         if not unmet_quotas:
             # atp we just need to get 1k in total
-            return self._accept(attrs)
+            return self._accept("we just need more people", attrs)
 
         contributes_to_deficit = any(k in unmet_quotas for k in attrs)
         if not contributes_to_deficit:
             # person is useless, safe to reject
-            return self._reject()
+            return self._reject("doesnt decrease deficits")
+
+        has_all_attributes = len(attrs) == len(self.deficits)
+        if has_all_attributes:
+            return self._accept("all attributes", attrs)
 
         if STRICT_UPPER_BOUND and self.remaining_budget == 0:
             # if we reject, we fail to improve the bound
-            return self._accept(attrs)
+            return self._accept("ran out of rejects", attrs)
 
-        # XXX main logic starts here
+        # XXX main logic -------------------------------------------------------
 
         # good idea: think about constraint satisfaction probas
         # FUCK simplified idea: probability that there will be `deficit[k]` people with attribute `k` out of the next `remaining_budget + remaining_places` people
@@ -62,14 +68,16 @@ class Strategy(BaseStrategy):
         }
         # TODO add threshold to cope with FUCKs
         if prod(accept_probas.values()) < total_proba:
-            return self._reject()
-        return self._accept(attrs)
+            return self._reject("proba rule")
+        return self._accept("fell through", attrs)
 
-    def _reject(self) -> bool:
+    def _reject(self, reason: str) -> bool:
+        print(reason)
         self.remaining_budget -= 1
         return False
 
-    def _accept(self, attrs: list[str]) -> bool:
+    def _accept(self, reason: str, attrs: list[str]) -> bool:
+        print(reason)
         self.remaining_places -= 1
         for k in attrs:
             if k in self.deficits and self.deficits[k] > 0:
