@@ -73,7 +73,7 @@ class Strategy(BaseStrategy):
         deficits: dict[str, int],
         remaining_budget: int,
         remaining_places: int,
-        n_runs: int = 100000,
+        n_runs: int = 1000000,
     ) -> float:
         """
         Informally -- satisfiability means that we can win if we make all the right choices.
@@ -114,142 +114,229 @@ class Strategy(BaseStrategy):
             remaining_budget + remaining_places, probas, size=n_runs
         )  # shape: n_runs, 2**k
 
-        feas = monte_carlo_feasibility(
-            runs, sets, deficits, remaining_places
-        )  # TODO refactor below
-        cnt = 0
-        for i in feas[0]:
-            if i:
-                cnt += 1
+        # WARN vibecode below
 
-        print(cnt)
-
-        return cnt / total
-
-    def _satisfiable(self, run) -> bool:
-        raise NotImplemented
-
-
-import numpy as np
-from ortools.sat.python import cp_model
-
-
-# ---------- compile once (from your schema) ----------
-def build_cover_index(sets, deficits):
-    """
-    sets: list[frozenset[str]] of length P (P=64) — pattern j contains these variable names
-    deficits: dict[str,int] — required counts per variable (c_i)
-
-    returns:
-      cover_ix_by_var: dict[str, np.ndarray[int]] of pattern indices covering that var
-      all_vars: sorted tuple of var names (for sanity)
-    """
-    P = len(sets)
-    cover_ix_by_var = {v: [] for v in deficits.keys()}
-    for j, S in enumerate(sets):
-        for v in S:
-            if v in cover_ix_by_var:  # ignore vars not constrained
-                cover_ix_by_var[v].append(j)
-    # freeze as numpy arrays (faster in loops)
-    cover_ix_by_var = {
-        v: np.array(ix, dtype=np.int32) for v, ix in cover_ix_by_var.items()
-    }
-    return cover_ix_by_var, tuple(sorted(deficits.keys()))
-
-
-# ---------- per-trial solve ----------
-def solve_trial_cpsat(
-    A_vec, cover_ix_by_var, deficits, m=None, check_only=True, time_limit_s=0.2
-):
-    """
-    A_vec: np.ndarray shape (P,) counts for this run (P must match len(sets))
-    cover_ix_by_var/deficits: from above
-    m: max rows allowed (required if check_only=True)
-    check_only:
-       - True  -> SAT check with constraint sum(z) <= m (fast feasibility test)
-       - False -> minimize sum(z) and return min rows
-    returns: (is_feasible, min_rows_or_None)
-    """
-    # quick impossibility pruning: if a var cannot be covered even using all rows of its covering patterns
-    for v, req in deficits.items():
-        if req <= 0:
-            continue
-        ix = cover_ix_by_var.get(v, None)
-        if ix is None or ix.size == 0:
-            return (False, None)
-        if int(A_vec[ix].sum()) < int(req):
-            return (False, None)
-
-    model = cp_model.CpModel()
-    P = int(A_vec.shape[0])
-
-    # decision vars: 0 <= z_j <= A_vec[j]
-    z = [model.NewIntVar(0, int(A_vec[j]), f"z_{j}") for j in range(P)]
-
-    # coverage constraints: for each constrained variable v, sum_{patterns covering v} z_j >= c_v
-    for v, req in deficits.items():
-        if req <= 0:
-            continue
-        ix = cover_ix_by_var[v]
-        # guard: ix might be empty handled above
-        model.Add(sum(z[j] for j in ix.tolist()) >= int(req))
-
-    if check_only:
-        assert m is not None, "m is required for check_only=True"
-        model.Add(sum(z) <= int(m))
-        # satisfaction only (no objective)
-    else:
-        model.Minimize(sum(z))
-
-    solver = cp_model.CpSolver()
-    if time_limit_s is not None:
-        solver.parameters.max_time_in_seconds = float(time_limit_s)
-    # Use multiple workers if available
-    solver.parameters.num_search_workers = 8
-
-    res = solver.Solve(model)
-    if res in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        if check_only:
-            return (True, None)
-        else:
-            return (True, int(round(solver.ObjectiveValue())))
-    else:
-        # UNSAT or time-out with no feasible solution found
-        if check_only:
-            return (False, None)
-        else:
-            return (False, None)
-
-
-# ---------- batch wrapper over your counts matrix ----------
-def monte_carlo_feasibility(
-    counts_matrix, sets, deficits, m, time_limit_s=0.2, check_only=True
-):
-    """
-    counts_matrix: np.ndarray shape (n_runs, P=64)
-    sets: list[frozenset[str]] length P
-    deficits: dict[str,int]
-    m: subset size limit
-    returns:
-      feasible_flags: np.ndarray[bool] length n_runs
-      mins_or_none: np.ndarray[int] (min rows if check_only=False, else all -1)
-    """
-    cover_ix_by_var, _ = build_cover_index(sets, deficits)
-    n_runs, P = counts_matrix.shape
-    feasible = np.zeros(n_runs, dtype=bool)
-    mins = np.full(n_runs, -1, dtype=np.int32)
-
-    for t in range(n_runs):
-        A_vec = counts_matrix[t]
-        ok, min_rows = solve_trial_cpsat(
-            A_vec=A_vec,
-            cover_ix_by_var=cover_ix_by_var,
+        checker = GurobiFeasibilityChecker(
+            patterns=sets,
             deficits=deficits,
-            m=m,
-            check_only=check_only,
-            time_limit_s=time_limit_s,
         )
-        feasible[t] = ok
-        if (not check_only) and (min_rows is not None):
-            mins[t] = min_rows
-    return feasible, mins
+        est, _ = estimate_feasibility_probability(
+            n=remaining_budget + remaining_places,
+            p=probas,
+            checker=checker,
+            m=remaining_places,
+        )
+        print(est)
+        return est
+
+
+import math
+from typing import (
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    Mapping,
+    MutableSequence,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
+
+import gurobipy as gp
+import numpy as np
+from gurobipy import GRB
+
+VarName = str
+Pattern = FrozenSet[VarName]
+PatternsIndex = Union[Sequence[Pattern], Mapping[int, Pattern]]
+
+
+def _ensure_patterns(patterns: PatternsIndex) -> List[Pattern]:
+    """
+    Coerce `patterns` into a 0..P-1 ordered list of frozensets.
+    Accepts either:
+      - a Sequence[Pattern] already ordered (e.g., list/tuple of length P), or
+      - a Mapping[int, Pattern] with contiguous keys 0..P-1.
+    """
+    if isinstance(patterns, Mapping):
+        if not patterns:
+            return []
+        keys = sorted(patterns.keys())
+        if keys[0] != 0 or keys[-1] != len(keys) - 1 or keys != list(range(len(keys))):
+            raise ValueError("Pattern mapping keys must be contiguous 0..P-1.")
+        return [patterns[i] for i in range(len(keys))]
+    elif isinstance(patterns, Sequence):
+        return list(patterns)
+    else:
+        raise TypeError(
+            "`patterns` must be a sequence or a mapping from int to frozenset[str]."
+        )
+
+
+def _wilson_interval(p_hat: float, n: int, z: float = 1.96) -> Tuple[float, float]:
+    """95% Wilson score interval by default."""
+    if n == 0:
+        return (0.0, 1.0)
+    denom = 1.0 + (z * z) / n
+    center = (p_hat + (z * z) / (2 * n)) / denom
+    half = z * math.sqrt((p_hat * (1 - p_hat) / n) + (z * z) / (4 * n * n)) / denom
+    return (max(0.0, center - half), min(1.0, center + half))
+
+
+class GurobiFeasibilityChecker:
+    """
+    Reusable Gurobi model to compute f(A): the minimum number of rows needed
+    to satisfy coverage lower-bounds `deficits`, given pattern counts A.
+
+    Variables: z_j ∈ {0,1,...,A_j} for each pattern j
+    Constraints: for each var i,  sum_{j: i∈pattern_j} z_j >= deficits[i]
+    Objective: minimize sum_j z_j
+    """
+
+    def __init__(
+        self,
+        patterns: PatternsIndex,
+        deficits: Dict[VarName, int],
+        env: Optional[gp.Env] = None,
+        time_limit_s: Optional[float] = None,
+        mip_focus: Optional[int] = None,
+        threads: Optional[int] = None,
+        quiet: bool = True,
+    ) -> None:
+        self.patterns: List[Pattern] = _ensure_patterns(patterns)
+        self.P: int = len(self.patterns)
+        self.deficits: Dict[VarName, int] = dict(deficits)
+        if any(v < 0 for v in self.deficits.values()):
+            raise ValueError("All deficits must be >= 0.")
+
+        # Build coverage index: for each variable name, which pattern indices contain it
+        self.var_names: List[VarName] = sorted(self.deficits.keys())
+        self.covers: Dict[VarName, List[int]] = {
+            name: [j for j, pat in enumerate(self.patterns) if name in pat]
+            for name in self.var_names
+        }
+
+        # Build model once; we only change UBs per trial.
+        self.env = env or gp.Env(empty=True)
+        if env is None:
+            if quiet:
+                self.env.setParam("OutputFlag", 0)
+            self.env.start()
+
+        self.model = gp.Model(env=self.env)
+        if quiet:
+            self.model.Params.OutputFlag = 0
+        if time_limit_s is not None:
+            self.model.Params.TimeLimit = float(time_limit_s)
+        if mip_focus is not None:
+            self.model.Params.MIPFocus = int(mip_focus)
+        if threads is not None:
+            self.model.Params.Threads = int(threads)
+
+        # Decision vars: z_j ∈ [0, 0] initially; we'll set UB per trial.
+        self.z: List[gp.Var] = [
+            self.model.addVar(vtype=GRB.INTEGER, lb=0.0, ub=0.0, name=f"z_{j}")
+            for j in range(self.P)
+        ]
+
+        # Coverage constraints
+        self.constrs: Dict[VarName, gp.Constr] = {}
+        for name in self.var_names:
+            rhs = float(self.deficits[name])
+            idxs = self.covers[name]
+            self.constrs[name] = self.model.addConstr(
+                gp.quicksum(self.z[j] for j in idxs) >= rhs, name=f"cover_{name}"
+            )
+
+        # Objective: minimize total selected rows
+        self.model.ModelSense = GRB.MINIMIZE
+        self.model.setObjective(gp.quicksum(self.z))
+
+        self.model.update()
+
+    def _necessary_check(self, A: np.ndarray) -> bool:
+        """
+        Quick necessary condition: for each variable `name`,
+        sum of counts across patterns that contain `name` must be >= deficits[name].
+        """
+        for name in self.var_names:
+            total_available = int(np.sum(A[self.covers[name]]))
+            if total_available < self.deficits[name]:
+                return False
+        return True
+
+    def min_rows_needed(self, A: np.ndarray) -> int:
+        """
+        Return f(A) or math.inf if infeasible (or proven infeasible by cuts).
+        """
+        if A.dtype.kind not in "iu":
+            A = A.astype(int, copy=False)
+        if A.shape != (self.P,):
+            raise ValueError(f"A must have shape ({self.P},), got {A.shape}.")
+
+        # Necessary infeasibility check
+        if not self._necessary_check(A):
+            return math.inf
+
+        # Update UBs and solve
+        for j, ub in enumerate(A.tolist()):
+            self.z[j].UB = float(int(ub))
+        self.model.update()
+        self.model.optimize()
+
+        status = self.model.Status
+        if status in (GRB.OPTIMAL,):
+            return int(round(self.model.ObjVal))
+        if status == GRB.INFEASIBLE:
+            return math.inf
+        # If time-limited or otherwise stopped, fall back to best bound/solution
+        if self.model.SolCount > 0:
+            return int(round(self.model.ObjVal))
+        # If no solution known, try infeasibility via IIS as last resort (optional)
+        return math.inf
+
+
+def estimate_feasibility_probability(
+    n: int,
+    p: Union[np.ndarray, Sequence[float]],
+    checker: GurobiFeasibilityChecker,
+    m: int,
+    trials: int = 1000000,
+    seed: Optional[Union[int, np.random.Generator]] = None,
+) -> Tuple[float, Tuple[float, float]]:
+    """
+    Monte Carlo estimator for Pr[f(A) <= m], with Wilson 95% CI.
+
+    Parameters
+    ----------
+    n : number of iid draws
+    p : length-P probabilities matching the `checker.patterns` order
+    checker : initialized GurobiFeasibilityChecker
+    m : subset-size cap to test (feasible iff f(A) <= m)
+    trials : number of Monte Carlo trials
+    seed : RNG seed or Generator
+
+    Returns
+    -------
+    (est, (lo, hi))
+    """
+    p_arr = np.asarray(p, dtype=float)
+    if p_arr.ndim != 1 or p_arr.shape[0] != checker.P:
+        raise ValueError(f"p must be length {checker.P}.")
+    if not np.isclose(p_arr.sum(), 1.0):
+        p_arr = p_arr / p_arr.sum()
+
+    rng = seed if isinstance(seed, np.random.Generator) else np.random.default_rng(seed)
+
+    successes = 0
+    for _ in range(trials):
+        A = rng.multinomial(n, p_arr)  # shape (P,)
+        min_rows = checker.min_rows_needed(A)
+        if min_rows <= m:
+            successes += 1
+
+    est = successes / trials
+    ci = _wilson_interval(est, trials)
+    return est, ci
