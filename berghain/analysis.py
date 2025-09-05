@@ -20,6 +20,7 @@ def scenario_to_path(scenario: int) -> str:
 
 
 def load_stats(path: str) -> dict | None:
+    # TODO refactor: use an actual object instead of a dict
     """Load attribute counts from log files."""
     files = _collect_files(path)
     if not files:
@@ -28,6 +29,7 @@ def load_stats(path: str) -> dict | None:
     counts: Dict[FrozenSet[str], int] = defaultdict(int)
     seen: set[str] = set()
     attr_true: dict[str, int] = defaultdict(int)
+    sets: set[frozenset] = set()
     total = 0
 
     for fp in files:
@@ -45,6 +47,7 @@ def load_stats(path: str) -> dict | None:
                         continue
                     seen.update(obj.keys())
                     true_set = frozenset(k for k, v in obj.items() if v is True)
+                    sets.add(true_set)
                     for k in true_set:
                         attr_true[k] += 1
                     counts[true_set] += 1
@@ -59,4 +62,5 @@ def load_stats(path: str) -> dict | None:
         "attributes": tuple(sorted(seen)),
         "total": total,
         "counts": dict(counts),
+        "sets": sets,
     }

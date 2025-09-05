@@ -1,3 +1,6 @@
+from numpy.random import multinomial
+from numpy.typing import NDArray
+
 from berghain.strategy_base import BaseStrategy
 
 
@@ -92,4 +95,22 @@ class Strategy(BaseStrategy):
 
     def _get_mc_runs(
         self, n_runs: int, remaining_budget: int, remaining_places: int
-    ) -> list: ...
+    ) -> NDArray:
+        if self.stats is None:
+            raise Exception("no stats loaded")
+
+        sets = self.stats["sets"]  # `2 ** len(attributes)` possible combinations
+        counts = self.stats["counts"]
+        total = self.stats["total"]
+
+        # https://en.wikipedia.org/wiki/Categorical_distribution#Bayesian_inference_using_conjugate_prior
+        alpha: float = 0
+        # TODO: maybe make alpha depend on attribute
+        probas = [
+            ((counts[attrset] + alpha) / (total + alpha * (2 ** len(sets))))
+            for attrset in sets
+        ]
+
+        return multinomial(
+            remaining_budget + remaining_places, probas, size=n_runs
+        )  # shape: n_runs, 2**k
