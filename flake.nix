@@ -24,19 +24,8 @@
         let
           pythonDeps =
             p: with p; [
-              scikit-image
-              scikit-learn
               scipy
-              jupyter
-              jupyter-collaboration
-              jupytext
-              matplotlib
               numpy
-              pandas
-              plotly
-              pytest
-              tqdm
-              typer
             ];
           app =
             (pkgs.writeShellApplication {
