@@ -1,12 +1,10 @@
-from scipy.stats import binom
-
 from berghain.strategy_base import BaseStrategy
 
 
 class Strategy(BaseStrategy):
     def __init__(self, scenario, constraints, attribute_statistics):
         super().__init__(scenario, constraints, attribute_statistics)
-        self.deficits = dict(self.min_required)
+        self.deficits = dict(self.min_required)  # NOTE can be negative
         self.remaining_places = 1000
         self.remaining_budget = self.max_rejections - 1
 
@@ -32,35 +30,48 @@ class Strategy(BaseStrategy):
         return self._accept(attrs, reason="proba")
 
     def _satisfiability_logproba_diff(self, attrs: list[str]) -> float:
-        """Compare win log-probability if we accept vs reject this person."""
-        deficits_if_reject = dict(self.deficits)
-        deficits_if_accept = dict(deficits_if_reject)
-        for k in attrs:
-            if k in deficits_if_accept and deficits_if_accept[k] > 0:
-                deficits_if_accept[k] -= 1
+        """
+        Compare log-probability of "satisfiability" if we accept vs reject this person.
+        """
 
-        remaining_if_accept = (self.remaining_budget) + (self.remaining_places - 1)
-        remaining_if_reject = (self.remaining_budget - 1) + (self.remaining_places)
+        deficits_if_accept = dict(self.deficits)
+        for k in attrs:
+            deficits_if_accept[k] -= 1
 
         return self._satisfiability_logproba(
-            deficits_if_accept, remaining_if_accept
-        ) - self._satisfiability_logproba(deficits_if_reject, remaining_if_reject)
+            deficits_if_accept,
+            self.remaining_budget,
+            self.remaining_places - 1,
+        ) - self._satisfiability_logproba(
+            self.deficits, self.remaining_budget - 1, self.remaining_places
+        )
 
     def _satisfiability_logproba(
-        self, deficits: dict[str, int], remaining: int
+        self,
+        deficits: dict[str, int],
+        remaining_budget: int,
+        remaining_places: int,
+        n_runs: int = 1024,
     ) -> float:
-        """Approximate log P(all deficits satisfiable) with independent binomials."""
-        if remaining <= 0:
-            return float("-inf") if any(v > 0 for v in deficits.values()) else 0.0
-        logp = 0.0
-        for attr, need in deficits.items():
-            if need <= 0:
-                continue
-            p = float(self.relative_frequencies.get(attr, 0.0))
-            if p <= 0.0:
-                return float("-inf")
-            logp += float(binom.logsf(need - 1, remaining, p))
-        return logp
+        """
+        Informally -- satisfiability means that we can win if we make all the right choices.
+
+        More formally: probability that if we sample
+        n=remaining_budget+remaining_places people, out of those n people there
+        is a subset of m=remaining_budget people, such that choosing them
+        satisfies all attribute constraints
+
+        To esimate that probability, we will use Monte-Carlo and the esimated
+        joint probability distribution:
+
+        n_runs times we sample `remaining_budget+remainint_places` persons, and
+        check if there is a `remaining_places` subset that satisfies attribute
+        constraints
+
+        NOTE we could go a few steps exactly, and then do monte-carlo? would that decrese the estimate variance?
+        """
+        # TODO
+        return 0.0
 
     def _joint(self):
         """Return joint distribution estimate as {frozenset(attrs): prob}."""

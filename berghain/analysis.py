@@ -16,6 +16,8 @@ def _collect_files(path: str) -> list[Path]:
 
 
 def compute_joint_estimate(path: str) -> dict | None:
+    # these are counts, so this is a misnomer -- it's not a bunch of probabilities
+    # TODO rename and bubble up
     files = _collect_files(path)
     if not files:
         return None
