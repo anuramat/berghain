@@ -29,7 +29,7 @@ def load_stats(path: str) -> dict | None:
     counts: Dict[FrozenSet[str], int] = defaultdict(int)
     seen: set[str] = set()
     attr_true: dict[str, int] = defaultdict(int)
-    sets: set[frozenset] = set()
+    sets: set[frozenset[str]] = set()
     total = 0
 
     for fp in files:
@@ -62,5 +62,5 @@ def load_stats(path: str) -> dict | None:
         "attributes": tuple(sorted(seen)),
         "total": total,
         "counts": dict(counts),
-        "sets": sets,
+        "sets": list(sets),
     }
