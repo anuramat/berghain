@@ -26,6 +26,7 @@
             p: with p; [
               scipy
               numpy
+              ortools
             ];
           app =
             (pkgs.writeShellApplication {
