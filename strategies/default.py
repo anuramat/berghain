@@ -8,13 +8,27 @@ class Strategy(BaseStrategy):
         self.remaining_places = 1000
         self.remaining_budget = self.max_rejections - 1
 
+    def _reject(self, reason: str = "") -> bool:
+        if reason:
+            print(reason)
+        self.remaining_budget -= 1
+        if self.remaining_budget == 0:
+            print("--- rejection budget exceeded ---")
+        return False
+
+    def _accept(self, attrs: list[str], reason: str = "") -> bool:
+        if reason:
+            print(reason)
+        self.remaining_places -= 1
+        for k in attrs:
+            self.deficits[k] -= 1
+        return True
+
     def decide(self, attrs: dict[str, bool]) -> bool:
         present = [k for k, v in attrs.items() if v]
         return self._decide(present)
 
     def _decide(self, attrs: list[str]) -> bool:
-        self.log()
-
         unmet = [k for k, v in self.deficits.items() if v > 0]
         if not unmet:
             return self._accept(attrs, reason="we just need more people")
@@ -72,31 +86,3 @@ class Strategy(BaseStrategy):
         """
         # TODO
         return 0.0
-
-    def _joint(self):
-        """Return joint distribution estimate as {frozenset(attrs): prob}."""
-        je = self.joint_estimate
-        if not je:
-            return {}
-        total = max(1, int(je.get("total", 1)))
-        return {k: v / total for k, v in je.get("joint_counts", {}).items()}
-
-    def _reject(self, reason: str = "") -> bool:
-        if reason:
-            print(reason)
-        self.remaining_budget -= 1
-        if self.remaining_budget == 0:
-            print("--- rejection budget exceeded ---")
-        return False
-
-    def _accept(self, attrs: list[str], reason: str = "") -> bool:
-        if reason:
-            print(reason)
-        self.remaining_places -= 1
-        for k in attrs:
-            self.deficits[k] -= 1
-        return True
-
-    def log(self):
-        """Hook for unconditional logging (no-op)."""
-        return None

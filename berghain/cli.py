@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from urllib.error import HTTPError
 
+from .analysis import load_stats
 from .api import decide_and_next, new_game
 
 
@@ -24,25 +25,23 @@ def load_strategy(module_name: str | None, scenario, constraints, attribute_stat
 
 
 def analyze_log(path: str) -> int:
-    from .analysis import compute_joint_estimate
-
-    je = compute_joint_estimate(path)
-    if not je:
+    stats = load_stats(path)
+    if not stats:
         print("Error: no valid data found", file=sys.stderr)
         return 1
 
-    attrs = list(je["attributes"])  # alphabetical
-    total: int = je["total"]
-    joint = je["joint_counts"]
+    attrs = list(stats["attributes"])  # alphabetical
+    total: int = stats["total"]
+    counts = stats["counts"]
 
     print("Marginals (P=True):")
     for a in attrs:
-        c = sum(c for ts, c in joint.items() if a in ts)
+        c = sum(c for ts, c in counts.items() if a in ts)
         print(f"{a}: {c/total:.4f} ({c})")
     print()
-    print("Joint distribution:")
+    print("Probability distribution:")
     for ts, c in sorted(
-        joint.items(), key=lambda kv: (-kv[1], ",".join(sorted(kv[0])))
+        counts.items(), key=lambda kv: (-kv[1], ",".join(sorted(kv[0])))
     ):
         label = "∅" if not ts else ",".join(sorted(ts))
         print(f"true={{{label}}} | P {c/total:.4f} ({c})")

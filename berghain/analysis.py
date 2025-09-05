@@ -15,14 +15,17 @@ def _collect_files(path: str) -> list[Path]:
     return []
 
 
-def compute_joint_estimate(path: str) -> dict | None:
-    # these are counts, so this is a misnomer -- it's not a bunch of probabilities
-    # TODO rename and bubble up
+def scenario_to_path(scenario: int) -> str:
+    return f"logs/scenario{scenario}"
+
+
+def load_stats(path: str) -> dict | None:
+    """Load attribute counts from log files."""
     files = _collect_files(path)
     if not files:
         return None
 
-    joint_counts: Dict[FrozenSet[str], int] = defaultdict(int)
+    counts: Dict[FrozenSet[str], int] = defaultdict(int)
     seen: set[str] = set()
     attr_true: dict[str, int] = defaultdict(int)
     total = 0
@@ -44,7 +47,7 @@ def compute_joint_estimate(path: str) -> dict | None:
                     true_set = frozenset(k for k, v in obj.items() if v is True)
                     for k in true_set:
                         attr_true[k] += 1
-                    joint_counts[true_set] += 1
+                    counts[true_set] += 1
                     total += 1
         except FileNotFoundError:
             continue
@@ -55,5 +58,5 @@ def compute_joint_estimate(path: str) -> dict | None:
     return {
         "attributes": tuple(sorted(seen)),
         "total": total,
-        "joint_counts": dict(joint_counts),
+        "counts": dict(counts),
     }
