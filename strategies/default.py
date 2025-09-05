@@ -84,5 +84,12 @@ class Strategy(BaseStrategy):
 
         NOTE we could go a few steps exactly, and then do monte-carlo? would that decrese the estimate variance?
         """
-        # TODO
-        return 0.0
+        runs = self._get_mc_runs(n_runs, remaining_budget, remaining_places)
+        good = [self._satisfiable(run) for run in runs]
+        return len(good) / n_runs
+
+    def _satisfiable(self, run) -> bool: ...
+
+    def _get_mc_runs(
+        self, n_runs: int, remaining_budget: int, remaining_places: int
+    ) -> list: ...
