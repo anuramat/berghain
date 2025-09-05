@@ -27,6 +27,8 @@
               scipy
               numpy
               ortools
+              gurobipy
+              numba
             ];
           app =
             (pkgs.writeShellApplication {
