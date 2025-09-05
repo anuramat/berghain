@@ -58,13 +58,15 @@ class Strategy(BaseStrategy):
         for k in attrs:
             deficits_if_accept[k] -= 1
 
-        return self._satisfiability_logproba(
+        diff = self._satisfiability_logproba(
             deficits_if_accept,
             self.remaining_budget,
             self.remaining_places - 1,
         ) - self._satisfiability_logproba(
             self.deficits, self.remaining_budget - 1, self.remaining_places
         )
+        print("proba diff:", diff)
+        return diff
 
     def _satisfiability_logproba(
         self,
