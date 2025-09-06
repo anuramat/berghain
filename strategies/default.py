@@ -94,8 +94,6 @@ class Strategy(BaseStrategy):
         n_runs times we sample `remaining_budget+remainint_places` persons, and
         check if there is a `remaining_places` subset that satisfies attribute
         constraints
-
-        NOTE we could go a few steps exactly, and then do monte-carlo? would that decrese the estimate variance?
         """
 
         runs = multinomial(2 ** len(deficits), self.proba, size=n_runs)
