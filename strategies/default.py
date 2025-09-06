@@ -139,8 +139,8 @@ class Strategy(BaseStrategy):
         Informally -- satisfiability means that we can win if we make all the right choices.
 
         More formally: probability that if we sample
-        n=remaining_rejects+remaining_accepts people, out of those n people there
-        is a subset of m=remaining_rejects people, such that choosing them
+        remaining_rejects+remaining_accepts people, out of those n people there
+        is a subset of remaining_rejects people, such that choosing them
         satisfies all attribute constraints (deficits)
 
         To esimate that probability, we will use Monte-Carlo and the esimated
