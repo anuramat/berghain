@@ -20,7 +20,7 @@ Now the problem is reformulated as follows:
 - $k$ quota constraints: $\sum_{i \in a_j} x_i >= q_j$, where $a_j$ is the set of
   types of people that have attribute $j$, and $q_j$ is the corresponding
   attribute quota (deficits); $k <= 6$
-- $2^k$ count constraint: $x_i < c_i$, where $c_i$ is the count of people of type $i$
+- $2^k$ count constraint: $x_i <= c_i$, where $c_i$ is the count of people of type $i$
   in the given run
 
 We check each run for feasibility, compare the esimates for both actions,

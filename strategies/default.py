@@ -140,7 +140,7 @@ class Strategy(BaseStrategy):
 
         More formally: probability that if we sample
         remaining_rejects+remaining_accepts people, out of those n people there
-        is a subset of remaining_rejects people, such that choosing them
+        is a subset of remaining_accepts people, such that choosing them
         satisfies all attribute constraints (deficits)
 
         To esimate that probability, we will use Monte-Carlo and the esimated
