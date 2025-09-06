@@ -5,6 +5,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, FrozenSet, Iterable
 
+import numpy as np
+
 
 def _collect_files(path: str) -> list[Path]:
     p = Path(path)
@@ -58,9 +60,26 @@ def load_stats(path: str) -> dict | None:
     if total == 0:
         return None
 
+    attributes = tuple(sorted(seen))
+    bits_to_set = tuple(
+        frozenset(attributes[i] for i in range(len(attributes)) if (b >> i) & 1)
+        for b in range(2 ** len(attributes))
+    )
+    # https://en.wikipedia.org/wiki/Categorical_distribution#Bayesian_inference_using_conjugate_prior
+    # TODO: maybe make alpha depend on attribute
+    alpha = 0.5
+    proba = np.asarray(
+        [
+            ((counts[attrset] + alpha) / (total + alpha * (2 ** len(sets))))
+            for attrset in bits_to_set
+        ]
+    )
+
     return {
-        "attributes": tuple(sorted(seen)),
+        "attributes": attributes,
         "total": total,
         "counts": dict(counts),
-        "sets": list(sets),
+        "sets": tuple(sorted(list(sets))),
+        "proba": proba,
+        "bits_to_set": bits_to_set,
     }
