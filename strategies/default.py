@@ -133,7 +133,7 @@ class Strategy(BaseStrategy):
         deficits: dict[str, int],
         remaining_budget: int,
         remaining_places: int,
-        n_runs: int = 100000,
+        n_runs: int = 1000000,
     ) -> float:
         """
         Informally -- satisfiability means that we can win if we make all the right choices.
@@ -192,13 +192,14 @@ class Strategy(BaseStrategy):
         ]
 
         # Process in parallel with early stopping
-        batch_size = 1000
+        n_procs = 16
+        batch_size = len(args_list) // n_procs
         n_feasible = 0
         n_processed = 0
 
         mc_start = time()
 
-        with Pool(processes=8) as pool:
+        with Pool(processes=n_procs) as pool:
             for batch_start in range(0, len(args_list), batch_size):
                 batch_end = min(batch_start + batch_size, len(args_list))
                 batch_args = args_list[batch_start:batch_end]
@@ -208,20 +209,21 @@ class Strategy(BaseStrategy):
                 n_feasible += sum(results)
                 n_processed += len(results)
 
-                # Early statistical stopping
-                if n_processed >= 1000:
-                    p_hat = n_feasible / n_processed
-                    stderr = np.sqrt(p_hat * (1 - p_hat) / n_processed)
-                    confidence_width = 1.96 * stderr  # 95% CI
-
-                    if confidence_width < 0.01:  # 1% precision
-                        print(
-                            f"Early stopping at {n_processed} runs (CI width: {confidence_width:.4f})"
-                        )
-                        # Scale to full sample
-                        return p_hat * len(feasible_indices) / n_runs
+                # # Early statistical stopping
+                # if n_processed >= 1000:
+                #     p_hat = n_feasible / n_processed
+                #     stderr = np.sqrt(p_hat * (1 - p_hat) / n_processed)
+                #     confidence_width = 1.96 * stderr  # 95% CI
+                #
+                #     if confidence_width < 0.01:  # 1% precision
+                #         print(
+                #             f"Early stopping at {n_processed} runs (CI width: {confidence_width:.4f})"
+                #         )
+                #         # Scale to full sample
+                #         return p_hat * len(feasible_indices) / n_runs
 
         print(f"solved {len(feasible_indices)} CP problems in {time() - mc_start:.2f}s")
+        print(n_feasible)
 
         # Return probability accounting for pre-filtering
         return (n_feasible / len(feasible_indices)) * (len(feasible_indices) / n_runs)
