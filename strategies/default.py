@@ -49,31 +49,30 @@ class Strategy(BaseStrategy):
         if len(attrs) == len(self.deficits):
             return self._accept(attrs, reason="all attributes")
 
-        if self._satisfiability_logproba_diff(attrs) < 0:
+        if self._satisfiability_proba_diff(attrs) < 0:
             return self._reject(reason="proba")
         return self._accept(attrs, reason="proba")
 
-    def _satisfiability_logproba_diff(self, attrs: list[str]) -> float:
-        # TODO we're not gonna use logproba, so rename everything and edit comments
+    def _satisfiability_proba_diff(self, attrs: list[str]) -> float:
         """
-        Compare log-probability of "satisfiability" if we accept vs reject this person.
+        Compare probability of "satisfiability" if we accept vs reject this person.
         """
 
         deficits_if_accept = dict(self.deficits)
         for k in attrs:
             deficits_if_accept[k] -= 1
 
-        diff = self._satisfiability_logproba(
+        diff = self._satisfiability_proba(
             deficits_if_accept,
             self.remaining_budget,
             self.remaining_places - 1,
-        ) - self._satisfiability_logproba(
+        ) - self._satisfiability_proba(
             self.deficits, self.remaining_budget - 1, self.remaining_places
         )
         print("proba diff:", diff)
         return diff
 
-    def _satisfiability_logproba(
+    def _satisfiability_proba(
         self,
         deficits: dict[str, int],
         remaining_budget: int,
