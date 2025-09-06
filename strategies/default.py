@@ -86,18 +86,18 @@ class Strategy(BaseStrategy):
         More formally: probability that if we sample
         n=remaining_budget+remaining_places people, out of those n people there
         is a subset of m=remaining_budget people, such that choosing them
-        satisfies all attribute constraints
+        satisfies all attribute constraints (deficits)
 
         To esimate that probability, we will use Monte-Carlo and the esimated
         joint probability distribution:
 
-        n_runs times we sample `remaining_budget+remainint_places` persons, and
+        n_runs times we sample `remaining_budget+remaining_places` persons, and
         check if there is a `remaining_places` subset that satisfies attribute
         constraints
         """
 
-        runs = multinomial(2 ** len(deficits), self.proba, size=n_runs)
+        runs = multinomial(remaining_budget + remaining_places, self.proba, size=n_runs)
 
-        # TODO use a cpsolver from ortools to calculate how many runs are feasible
+        # TODO use a cpsolver from ortools to calculate how many runs are feasible, then return `n_feasible/n_runs`
 
         raise NotImplementedError
