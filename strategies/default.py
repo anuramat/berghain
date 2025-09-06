@@ -16,9 +16,7 @@ class Strategy(BaseStrategy):
 
         if self.stats is None:
             raise Exception("no stats loaded")
-        proba = self.stats["proba"]
-        n_runs = 1000000
-        self.runs = ...
+        self.proba = self.stats["proba"]
 
     def _reject(self, reason: str = "") -> bool:
         if reason:
@@ -80,7 +78,7 @@ class Strategy(BaseStrategy):
         deficits: dict[str, int],
         remaining_budget: int,
         remaining_places: int,
-        n_runs: int = 1000000,
+        n_runs: int = 10000,
     ) -> float:
         """
         Informally -- satisfiability means that we can win if we make all the right choices.
@@ -99,5 +97,9 @@ class Strategy(BaseStrategy):
 
         NOTE we could go a few steps exactly, and then do monte-carlo? would that decrese the estimate variance?
         """
+
+        runs = multinomial(2 ** len(deficits), self.proba, size=n_runs)
+
+        # TODO use a cpsolver from ortools to calculate how many runs are feasible
 
         raise NotImplementedError
