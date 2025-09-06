@@ -1,3 +1,5 @@
+from time import time
+
 import numpy as np
 from numba import njit
 from numpy.random import multinomial
@@ -72,12 +74,25 @@ class Strategy(BaseStrategy):
         print("proba diff:", diff)
         return diff
 
+    def _build_coverage_index(self, bits_to_set, deficits):
+        """Pre-compute which patterns cover which variables."""
+        cover_ix_by_var = {v: [] for v in deficits.keys()}
+        for j, pattern in enumerate(bits_to_set):
+            for v in pattern:
+                if v in cover_ix_by_var:
+                    cover_ix_by_var[v].append(j)
+        # Convert to numpy arrays for faster access
+        cover_ix_by_var = {
+            v: np.array(ix, dtype=np.int32) for v, ix in cover_ix_by_var.items()
+        }
+        return cover_ix_by_var
+
     def _satisfiability_proba(
         self,
         deficits: dict[str, int],
         remaining_budget: int,
         remaining_places: int,
-        n_runs: int = 10000,
+        n_runs: int = 100000,
     ) -> float:
         """
         Informally -- satisfiability means that we can win if we make all the right choices.
@@ -95,8 +110,67 @@ class Strategy(BaseStrategy):
         constraints
         """
 
+        if remaining_places == 0 or remaining_budget == 0:
+            raise NotImplementedError(
+                "Edge case: remaining_places or remaining_budget is 0"
+            )
+
+        gen_start = time()
         runs = multinomial(remaining_budget + remaining_places, self.proba, size=n_runs)
+        print("generted runs in", time() - gen_start)
 
-        # TODO use a cpsolver from ortools to calculate how many runs are feasible, then return `n_feasible/n_runs`
+        # Pre-compute coverage indices once for all runs
+        bits_to_set = self.stats["bits_to_set"]
+        cover_ix_by_var = self._build_coverage_index(bits_to_set, deficits)
 
-        raise NotImplementedError
+        n_feasible = 0
+        mc_start = time()
+
+        for run in runs:
+            # Early impossibility detection
+            possible = True
+            for attr, deficit in deficits.items():
+                if deficit <= 0:
+                    continue
+                ix = cover_ix_by_var.get(attr)
+                if ix is None or ix.size == 0:
+                    possible = False
+                    break
+                # Check if we have enough people with this attribute
+                if int(run[ix].sum()) < deficit:
+                    possible = False
+                    break
+
+            if not possible:
+                continue
+
+            model = cp_model.CpModel()
+
+            # Decision variables: x[i] = number of people with attribute combination i to select
+            x = []
+            for i in range(len(run)):
+                x.append(model.NewIntVar(0, int(run[i]), f"x_{i}"))
+
+            # Constraint: select exactly remaining_places people
+            model.Add(sum(x) == remaining_places)
+
+            # Deficit constraints using pre-computed indices
+            for attr, deficit in deficits.items():
+                if deficit > 0:
+                    ix = cover_ix_by_var[attr]
+                    # Use pre-computed indices directly
+                    model.Add(sum(x[j] for j in ix.tolist()) >= deficit)
+
+            # Solve with optimized parameters
+            solver = cp_model.CpSolver()
+            solver.parameters.max_time_in_seconds = 0.2
+            solver.parameters.num_search_workers = 8
+
+            status = solver.Solve(model)
+
+            if status == cp_model.FEASIBLE or status == cp_model.OPTIMAL:
+                n_feasible += 1
+
+        print("solved in", time() - mc_start)
+
+        return n_feasible / n_runs
