@@ -1,3 +1,5 @@
+from functools import partial
+from multiprocessing import Pool
 from time import time
 
 import numpy as np
@@ -87,6 +89,45 @@ class Strategy(BaseStrategy):
         }
         return cover_ix_by_var
 
+    @staticmethod
+    def _solve_single_run(args):
+        """Solve a single CP problem for one run. Used by multiprocessing."""
+        run, cover_ix_by_var, deficits, remaining_places = args
+        
+        # Early impossibility detection
+        for attr, deficit in deficits.items():
+            if deficit <= 0:
+                continue
+            ix = cover_ix_by_var.get(attr)
+            if ix is None or ix.size == 0:
+                return False
+            if int(run[ix].sum()) < deficit:
+                return False
+        
+        model = cp_model.CpModel()
+        
+        # Decision variables
+        x = []
+        for i in range(len(run)):
+            x.append(model.NewIntVar(0, int(run[i]), f"x_{i}"))
+        
+        # Total constraint
+        model.Add(sum(x) == remaining_places)
+        
+        # Deficit constraints
+        for attr, deficit in deficits.items():
+            if deficit > 0:
+                ix = cover_ix_by_var[attr]
+                model.Add(sum(x[j] for j in ix.tolist()) >= deficit)
+        
+        # Solve
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = 0.2
+        solver.parameters.num_search_workers = 1  # Single worker per subprocess
+        
+        status = solver.Solve(model)
+        return status in (cp_model.FEASIBLE, cp_model.OPTIMAL)
+
     def _satisfiability_proba(
         self,
         deficits: dict[str, int],
@@ -117,60 +158,66 @@ class Strategy(BaseStrategy):
 
         gen_start = time()
         runs = multinomial(remaining_budget + remaining_places, self.proba, size=n_runs)
-        print("generted runs in", time() - gen_start)
+        print(f"generated {n_runs} runs in {time() - gen_start:.2f}s")
 
-        # Pre-compute coverage indices once for all runs
+        # Pre-compute coverage indices
         bits_to_set = self.stats["bits_to_set"]
         cover_ix_by_var = self._build_coverage_index(bits_to_set, deficits)
 
-        n_feasible = 0
-        mc_start = time()
-
-        for run in runs:
-            # Early impossibility detection
-            possible = True
-            for attr, deficit in deficits.items():
-                if deficit <= 0:
-                    continue
-                ix = cover_ix_by_var.get(attr)
-                if ix is None or ix.size == 0:
-                    possible = False
-                    break
-                # Check if we have enough people with this attribute
-                if int(run[ix].sum()) < deficit:
-                    possible = False
-                    break
-
-            if not possible:
+        # Vectorized early detection - check all runs at once
+        feasible_mask = np.ones(n_runs, dtype=bool)
+        for attr, deficit in deficits.items():
+            if deficit <= 0:
                 continue
-
-            model = cp_model.CpModel()
-
-            # Decision variables: x[i] = number of people with attribute combination i to select
-            x = []
-            for i in range(len(run)):
-                x.append(model.NewIntVar(0, int(run[i]), f"x_{i}"))
-
-            # Constraint: select exactly remaining_places people
-            model.Add(sum(x) == remaining_places)
-
-            # Deficit constraints using pre-computed indices
-            for attr, deficit in deficits.items():
-                if deficit > 0:
-                    ix = cover_ix_by_var[attr]
-                    # Use pre-computed indices directly
-                    model.Add(sum(x[j] for j in ix.tolist()) >= deficit)
-
-            # Solve with optimized parameters
-            solver = cp_model.CpSolver()
-            solver.parameters.max_time_in_seconds = 0.2
-            solver.parameters.num_search_workers = 8
-
-            status = solver.Solve(model)
-
-            if status == cp_model.FEASIBLE or status == cp_model.OPTIMAL:
-                n_feasible += 1
-
-        print("solved in", time() - mc_start)
-
-        return n_feasible / n_runs
+            ix = cover_ix_by_var.get(attr)
+            if ix is None or ix.size == 0:
+                return 0.0  # No way to satisfy this constraint
+            # Check all runs simultaneously
+            attr_sums = runs[:, ix].sum(axis=1)
+            feasible_mask &= (attr_sums >= deficit)
+        
+        # Get indices of potentially feasible runs
+        feasible_indices = np.where(feasible_mask)[0]
+        print(f"Pre-filtered to {len(feasible_indices)}/{n_runs} potentially feasible runs")
+        
+        if len(feasible_indices) == 0:
+            return 0.0
+        
+        # Prepare arguments for multiprocessing
+        args_list = [
+            (runs[i], cover_ix_by_var, deficits, remaining_places) 
+            for i in feasible_indices
+        ]
+        
+        # Process in parallel with early stopping
+        batch_size = 1000
+        n_feasible = 0
+        n_processed = 0
+        
+        mc_start = time()
+        
+        with Pool(processes=8) as pool:
+            for batch_start in range(0, len(args_list), batch_size):
+                batch_end = min(batch_start + batch_size, len(args_list))
+                batch_args = args_list[batch_start:batch_end]
+                
+                # Process batch in parallel
+                results = pool.map(self._solve_single_run, batch_args)
+                n_feasible += sum(results)
+                n_processed += len(results)
+                
+                # Early statistical stopping
+                if n_processed >= 1000:
+                    p_hat = n_feasible / n_processed
+                    stderr = np.sqrt(p_hat * (1 - p_hat) / n_processed)
+                    confidence_width = 1.96 * stderr  # 95% CI
+                    
+                    if confidence_width < 0.01:  # 1% precision
+                        print(f"Early stopping at {n_processed} runs (CI width: {confidence_width:.4f})")
+                        # Scale to full sample
+                        return p_hat * len(feasible_indices) / n_runs
+        
+        print(f"solved {len(feasible_indices)} CP problems in {time() - mc_start:.2f}s")
+        
+        # Return probability accounting for pre-filtering
+        return (n_feasible / len(feasible_indices)) * (len(feasible_indices) / n_runs)
