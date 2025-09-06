@@ -16,7 +16,7 @@ class Strategy(BaseStrategy):
         super().__init__(scenario, constraints, attribute_statistics)
         self.deficits = dict(self.min_required)  # NOTE can be negative
         self.remaining_accepts = 1000
-        self.remaining_rejects = self.max_rejections - 1
+        self.remaining_rejects = self.max_rejections
 
         if self.stats is None:
             raise Exception("no stats loaded")
@@ -26,8 +26,6 @@ class Strategy(BaseStrategy):
         if reason:
             print(reason)
         self.remaining_rejects -= 1
-        if self.remaining_rejects == 0:
-            print("--- rejection budget exceeded ---")
         return False
 
     def _accept(self, attrs: list[str], reason: str = "") -> bool:
@@ -44,7 +42,7 @@ class Strategy(BaseStrategy):
 
     def _decide(self, attrs: list[str]) -> bool:
         unmet = [k for k, v in self.deficits.items() if v > 0]
-        if not unmet:
+        if not unmet or self.remaining_rejects <= 0:
             return self._accept(attrs, reason="we just need more people")
 
         if not any(k in unmet for k in attrs):
@@ -151,11 +149,6 @@ class Strategy(BaseStrategy):
         constraints
         """
 
-        if remaining_accepts == 0 or remaining_rejects == 0:
-            raise NotImplementedError(
-                "Edge case: remaining_accepts or remaining_rejects is 0"
-            )
-
         gen_start = time()
         runs = multinomial(
             remaining_rejects + remaining_accepts, self.proba, size=n_runs
@@ -195,7 +188,7 @@ class Strategy(BaseStrategy):
 
         # Process in parallel with early stopping
         n_procs = 16
-        batch_size = len(args_list) // n_procs
+        batch_size = max(len(args_list) // n_procs, 1000)
         n_feasible = 0
         n_processed = 0
 
