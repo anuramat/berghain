@@ -15,8 +15,8 @@ class Strategy(BaseStrategy):
     def __init__(self, scenario, constraints, attribute_statistics):
         super().__init__(scenario, constraints, attribute_statistics)
         self.deficits = dict(self.min_required)  # NOTE can be negative
-        self.remaining_places = 1000
-        self.remaining_budget = self.max_rejections - 1
+        self.remaining_accepts = 1000
+        self.remaining_rejects = self.max_rejections - 1
 
         if self.stats is None:
             raise Exception("no stats loaded")
@@ -25,15 +25,15 @@ class Strategy(BaseStrategy):
     def _reject(self, reason: str = "") -> bool:
         if reason:
             print(reason)
-        self.remaining_budget -= 1
-        if self.remaining_budget == 0:
+        self.remaining_rejects -= 1
+        if self.remaining_rejects == 0:
             print("--- rejection budget exceeded ---")
         return False
 
     def _accept(self, attrs: list[str], reason: str = "") -> bool:
         if reason:
             print(reason)
-        self.remaining_places -= 1
+        self.remaining_accepts -= 1
         for k in attrs:
             self.deficits[k] -= 1
         return True
@@ -68,10 +68,10 @@ class Strategy(BaseStrategy):
 
         diff = self._satisfiability_proba(
             deficits_if_accept,
-            self.remaining_budget,
-            self.remaining_places - 1,
+            self.remaining_rejects,
+            self.remaining_accepts - 1,
         ) - self._satisfiability_proba(
-            self.deficits, self.remaining_budget - 1, self.remaining_places
+            self.deficits, self.remaining_rejects - 1, self.remaining_accepts
         )
         print("proba diff:", diff)
         return diff
@@ -92,7 +92,7 @@ class Strategy(BaseStrategy):
     @staticmethod
     def _solve_single_run(args):
         """Solve a single CP problem for one run. Used by multiprocessing."""
-        run, cover_ix_by_var, deficits, remaining_places = args
+        run, cover_ix_by_var, deficits, remaining_accepts = args
 
         # Early impossibility detection
         for attr, deficit in deficits.items():
@@ -112,7 +112,7 @@ class Strategy(BaseStrategy):
             x.append(model.NewIntVar(0, int(run[i]), f"x_{i}"))
 
         # Total constraint
-        model.Add(sum(x) == remaining_places)
+        model.Add(sum(x) == remaining_accepts)
 
         # Deficit constraints
         for attr, deficit in deficits.items():
@@ -131,33 +131,35 @@ class Strategy(BaseStrategy):
     def _satisfiability_proba(
         self,
         deficits: dict[str, int],
-        remaining_budget: int,
-        remaining_places: int,
+        remaining_rejects: int,
+        remaining_accepts: int,
         n_runs: int = 1000000,
     ) -> float:
         """
         Informally -- satisfiability means that we can win if we make all the right choices.
 
         More formally: probability that if we sample
-        n=remaining_budget+remaining_places people, out of those n people there
-        is a subset of m=remaining_budget people, such that choosing them
+        n=remaining_rejects+remaining_accepts people, out of those n people there
+        is a subset of m=remaining_rejects people, such that choosing them
         satisfies all attribute constraints (deficits)
 
         To esimate that probability, we will use Monte-Carlo and the esimated
         joint probability distribution:
 
-        n_runs times we sample `remaining_budget+remaining_places` persons, and
-        check if there is a `remaining_places` subset that satisfies attribute
+        n_runs times we sample `remaining_rejects+remaining_accepts` persons, and
+        check if there is a `remaining_accepts` subset that satisfies attribute
         constraints
         """
 
-        if remaining_places == 0 or remaining_budget == 0:
+        if remaining_accepts == 0 or remaining_rejects == 0:
             raise NotImplementedError(
-                "Edge case: remaining_places or remaining_budget is 0"
+                "Edge case: remaining_accepts or remaining_rejects is 0"
             )
 
         gen_start = time()
-        runs = multinomial(remaining_budget + remaining_places, self.proba, size=n_runs)
+        runs = multinomial(
+            remaining_rejects + remaining_accepts, self.proba, size=n_runs
+        )
         print(f"generated {n_runs} runs in {time() - gen_start:.2f}s")
 
         # Pre-compute coverage indices
@@ -187,7 +189,7 @@ class Strategy(BaseStrategy):
 
         # Prepare arguments for multiprocessing
         args_list = [
-            (runs[i], cover_ix_by_var, deficits, remaining_places)
+            (runs[i], cover_ix_by_var, deficits, remaining_accepts)
             for i in feasible_indices
         ]
 
