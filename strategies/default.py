@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit
 from numpy.random import multinomial
 from numpy.typing import NDArray
 from ortools.sat.python import cp_model
