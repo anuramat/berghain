@@ -48,7 +48,7 @@ class Strategy(BaseStrategy):
 
     def _decide(self, attrs: list[str]) -> bool:
         unmet = [k for k, v in self.deficits.items() if v > 0]
-        if not unmet:  # or remaining_rejects <= 0 XXX
+        if not unmet or self.remaining_rejects <= 0:
             return self._accept(attrs, reason="we just need more people")
 
         if not any(k in unmet for k in attrs):

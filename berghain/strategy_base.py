@@ -5,9 +5,9 @@ from .analysis import load_stats, scenario_to_path
 
 MAX_REJECTIONS: dict[int, int] = {
     # depending on scenario
-    1: 776,
-    2: 3317,
-    3: 4194,
+    1: 850,
+    2: 5000,
+    3: 6000,
 }
 
 
