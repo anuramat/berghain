@@ -17,10 +17,12 @@ class Strategy(BaseStrategy):
         self.deficits = dict(self.min_required)  # NOTE can be negative
         self.remaining_accepts = 1000
         self.remaining_rejects = self.max_rejections
+
         self.remaining_rejects_modified = self.remaining_rejects
-        self.feasibility_count_log = []
-        self.n_runs = 10000
-        self.min_feasible_stat = 1000
+        self.accept_feasibility_count_log = []
+        self.reject_feasibility_count_log = []
+        self.feasibility_count_diff_log = []
+        self.n_runs = 1000
 
         if self.stats is None:
             raise Exception("no stats loaded")
@@ -69,35 +71,43 @@ class Strategy(BaseStrategy):
         for k in attrs:
             deficits_if_accept[k] -= 1
 
-        if len(self.feasibility_count_log) > 0:
+        if len(self.accept_feasibility_count_log) > 0:
             # two modes of failure:
             # 1. nothing to learn -- under our assumptions we either always win, or we always lose
             # 2. the estimate is imprecise
 
-            avg = np.average(self.feasibility_count_log[-10:])
+            last_count = (
+                self.accept_feasibility_count_log[-1]
+                + self.reject_feasibility_count_log[-1]
+            ) / 2
 
-            # 1. make it challenging but possible
-            if min(self.last_accept_count, self.last_reject_count) > 0.5 * self.n_runs:
+            # 1. make it challenging but possible; it's pretty stable so using the last value is ok
+
+            ratio = last_count / self.n_runs
+            factor = 1 + 0.3 * abs(0.5 - ratio)
+            if ratio > 0.5:
                 # too easy -> make it harder
                 self.remaining_rejects_modified = int(
-                    self.remaining_rejects_modified / 1.3
+                    self.remaining_rejects_modified / factor
                 )
                 print(f"decreasing rejects to {self.remaining_rejects_modified}")
-            else:
+            elif ratio < 0.5:
                 # too hard -> make it easier
                 self.remaining_rejects_modified = int(
-                    1.3 * self.remaining_rejects_modified
+                    self.remaining_rejects_modified * factor
                 )
                 print(f"increasing rejects to {self.remaining_rejects_modified}")
 
-            # 2. make it precise
-            if self.last_diff < 32 and self.n_runs < 1000000:
+            # 2. make it precise; diffs are very random so we need a window
+            avg_diff = np.average(np.abs(self.feasibility_count_diff_log[-10:]))
+            last_diff = self.feasibility_count_diff_log[-1]
+            if avg_diff < 32 and self.n_runs < 1000000:
                 # sample size is too small to see anything
-                self.n_runs = int(self.n_runs * 1.3)
+                self.n_runs = int(self.n_runs * 1.1)
                 print(f"increasing n_runs to {self.n_runs}")
-            elif avg > 10000 and self.last_diff > 128:
+            elif last_count > 10000 and last_diff > 128:
                 # save compute if it's already precise
-                self.n_runs = int(self.n_runs / 1.3)
+                self.n_runs = int(self.n_runs / 1.1)
                 print(f"decreasing n_runs to {self.n_runs}")
 
         accept_feasibility_count = self._feasibility_mc(
@@ -108,10 +118,10 @@ class Strategy(BaseStrategy):
         reject_feasibility_count = self._feasibility_mc(
             self.deficits, self.remaining_rejects_modified - 1, self.remaining_accepts
         )
-        self.last_accept_count = accept_feasibility_count
-        self.last_reject_count = reject_feasibility_count
+        self.accept_feasibility_count_log.append(accept_feasibility_count)
+        self.reject_feasibility_count_log.append(reject_feasibility_count)
         diff = accept_feasibility_count - reject_feasibility_count
-        self.last_diff = diff
+        self.feasibility_count_diff_log.append(diff)
         print("count diff:", diff)
         return diff
 
@@ -246,7 +256,6 @@ class Strategy(BaseStrategy):
                 n_feasible += sum(results)
                 n_processed += len(results)
 
-        self.feasibility_count_log.append(n_feasible)
         print(f"feasible: {n_feasible}; time: {time() - mc_start}")
 
         return n_feasible
