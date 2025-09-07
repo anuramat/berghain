@@ -76,15 +76,13 @@ class Strategy(BaseStrategy):
             avg = np.average(self.feasibility_count_log[-10:])
 
             # 1. make it challenging but possible
-            if min(self.last_accept_count, self.last_reject_count) > 0.9 * self.n_runs:
+            if min(self.last_accept_count, self.last_reject_count) > 0.5 * self.n_runs:
                 # too easy -> make it harder
                 self.remaining_rejects_modified = int(
                     self.remaining_rejects_modified / 1.3
                 )
                 print(f"decreasing rejects to {self.remaining_rejects_modified}")
-            elif (
-                max(self.last_accept_count, self.last_reject_count) < 0.1 * self.n_runs
-            ):
+            else:
                 # too hard -> make it easier
                 self.remaining_rejects_modified = int(
                     1.3 * self.remaining_rejects_modified
