@@ -81,6 +81,7 @@ class Strategy(BaseStrategy):
             ) / 2
 
             # 1. make it challenging but possible; it's pretty stable so using the last value is ok
+            # WARN do not make it easier than in reality -- otherwise we reject too much
 
             ratio = last_count / self.n_runs
             factor = 1 + 0.3 * abs(0.5 - ratio)
@@ -95,7 +96,11 @@ class Strategy(BaseStrategy):
                 self.remaining_rejects_modified = int(
                     self.remaining_rejects_modified * factor
                 )
-                print(f"increasing rejects to {self.remaining_rejects_modified}")
+
+            self.remaining_rejects_modified = min(
+                self.remaining_rejects_modified, self.remaining_rejects
+            )
+            print(f"rejects modified: {self.remaining_rejects_modified}")
 
             # 2. make it precise; diffs are very random so we need a window
             avg_diff = np.average(np.abs(self.feasibility_count_diff_log[-10:]))
