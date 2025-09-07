@@ -49,8 +49,9 @@ class Strategy(BaseStrategy):
         if not unmet:  # or remaining_rejects <= 0 XXX
             return self._accept(attrs, reason="we just need more people")
 
-        if not any(k in unmet for k in attrs):
-            return self._reject(reason="doesnt decrease deficits")
+        # XXX only to be used together with hard ceiling on rejects
+        # if not any(k in unmet for k in attrs):
+        #     return self._reject(reason="doesnt decrease deficits")
 
         if len(attrs) == len(self.deficits):
             return self._accept(attrs, reason="all attributes")
