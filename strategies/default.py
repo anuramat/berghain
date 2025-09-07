@@ -17,6 +17,10 @@ class Strategy(BaseStrategy):
         self.deficits = dict(self.min_required)  # NOTE can be negative
         self.remaining_accepts = 1000
         self.remaining_rejects = self.max_rejections
+        self.remaining_rejects_modified = self.remaining_rejects
+        self.feasibility_count_log = []
+        self.n_runs = 10000
+        self.min_feasible_stat = 1000
 
         if self.stats is None:
             raise Exception("no stats loaded")
@@ -42,7 +46,7 @@ class Strategy(BaseStrategy):
 
     def _decide(self, attrs: list[str]) -> bool:
         unmet = [k for k, v in self.deficits.items() if v > 0]
-        if not unmet or self.remaining_rejects <= 0:
+        if not unmet:  # or remaining_rejects <= 0 XXX
             return self._accept(attrs, reason="we just need more people")
 
         if not any(k in unmet for k in attrs):
@@ -51,27 +55,65 @@ class Strategy(BaseStrategy):
         if len(attrs) == len(self.deficits):
             return self._accept(attrs, reason="all attributes")
 
-        if self._satisfiability_proba_diff(attrs) < 0:
+        if self._feasibility_diff(attrs) < 0:
             return self._reject(reason="proba")
         return self._accept(attrs, reason="proba")
 
-    def _satisfiability_proba_diff(self, attrs: list[str]) -> float:
+    def _feasibility_diff(self, attrs: list[str]) -> float:
         """
-        Compare probability of "satisfiability" if we accept vs reject this person.
+        Compare probability of the problem being feasible if we accept vs reject this person.
         """
 
         deficits_if_accept = dict(self.deficits)
         for k in attrs:
             deficits_if_accept[k] -= 1
 
-        diff = self._satisfiability_proba(
+        if len(self.feasibility_count_log) > 0:
+            # two modes of failure:
+            # 1. nothing to learn -- under our assumptions we either always win, or we always lose
+            # 2. the estimate is imprecise
+
+            avg = np.average(self.feasibility_count_log[-10:])
+
+            # 1. make it challenging but possible
+            if min(self.last_accept_count, self.last_reject_count) > 0.9 * self.n_runs:
+                # too easy -> make it harder
+                self.remaining_rejects_modified = int(
+                    self.remaining_rejects_modified / 1.3
+                )
+                print(f"decreasing rejects to {self.remaining_rejects_modified}")
+            elif (
+                max(self.last_accept_count, self.last_reject_count) < 0.1 * self.n_runs
+            ):
+                # too hard -> make it easier
+                self.remaining_rejects_modified = int(
+                    1.3 * self.remaining_rejects_modified
+                )
+                print(f"increasing rejects to {self.remaining_rejects_modified}")
+
+            # 2. make it precise
+            if self.last_diff < 32 and self.n_runs < 1000000:
+                # sample size is too small to see anything
+                self.n_runs = int(self.n_runs * 1.3)
+                print(f"increasing n_runs to {self.n_runs}")
+            elif avg > 10000 and self.last_diff > 128:
+                # save compute if it's already precise
+                self.n_runs = int(self.n_runs / 1.3)
+                print(f"decreasing n_runs to {self.n_runs}")
+
+        accept_feasibility_count = self._feasibility_mc(
             deficits_if_accept,
-            self.remaining_rejects,
+            self.remaining_rejects_modified,
             self.remaining_accepts - 1,
-        ) - self._satisfiability_proba(
-            self.deficits, self.remaining_rejects - 1, self.remaining_accepts
         )
-        print("proba diff:", diff)
+        reject_feasibility_count = self._feasibility_mc(
+            self.deficits, self.remaining_rejects_modified - 1, self.remaining_accepts
+        )
+        self.last_accept_count = accept_feasibility_count
+        self.last_reject_count = reject_feasibility_count
+        diff = accept_feasibility_count - reject_feasibility_count
+        self.last_diff = diff
+        print("count diff:", diff)
         return diff
 
     def _build_coverage_index(self, bits_to_set, deficits):
@@ -126,15 +168,14 @@ class Strategy(BaseStrategy):
         status = solver.Solve(model)
         return status in (cp_model.FEASIBLE, cp_model.OPTIMAL)
 
-    def _satisfiability_proba(
+    def _feasibility_mc(
         self,
         deficits: dict[str, int],
         remaining_rejects: int,
         remaining_accepts: int,
-        n_runs: int = 1000000,
     ) -> float:
         """
-        Informally -- satisfiability means that we can win if we make all the right choices.
+        Informally -- feasibility means that we can win if we make all the right choices.
 
         More formally: probability that if we sample
         remaining_rejects+remaining_accepts people, out of those n people there
@@ -148,6 +189,8 @@ class Strategy(BaseStrategy):
         check if there is a `remaining_accepts` subset that satisfies attribute
         constraints
         """
+
+        n_runs = self.n_runs
 
         gen_start = time()
         runs = multinomial(
@@ -204,8 +247,7 @@ class Strategy(BaseStrategy):
                 n_feasible += sum(results)
                 n_processed += len(results)
 
-        print(f"solved {len(feasible_indices)} CP problems in {time() - mc_start:.2f}s")
-        print(n_feasible)
+        self.feasibility_count_log.append(n_feasible)
+        print(f"feasible: {n_feasible}; time: {time() - mc_start}")
 
-        # Return probability accounting for pre-filtering
-        return (n_feasible / len(feasible_indices)) * (len(feasible_indices) / n_runs)
+        return n_feasible
