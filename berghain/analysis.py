@@ -70,7 +70,7 @@ def load_stats(path: str) -> dict | None:
     alpha = 0.5
     proba = np.asarray(
         [
-            ((counts[attrset] + alpha) / (total + alpha * (2 ** len(sets))))
+            ((counts[attrset] + alpha) / (total + alpha * (2 ** len(attributes))))
             for attrset in bits_to_set
         ]
     )
