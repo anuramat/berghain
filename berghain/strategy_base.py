@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from pathlib import Path
 
-from .analysis import load_stats, scenario_to_path
+from .distribution import OnlineDistribution
 
 MAX_REJECTIONS: dict[int, int] = {
     # depending on scenario
@@ -16,7 +15,7 @@ class BaseStrategy(ABC):
     relative_frequencies: dict[str, float]
     correlations: dict[str, dict[str, float]]
     max_rejections: int
-    stats: dict | None  # counts from previous runs for joint estimation
+    distribution: OnlineDistribution  # online joint distribution learning
 
     def __init__(
         self, scenario: int, constraints: list[dict], attribute_statistics: dict
@@ -27,7 +26,16 @@ class BaseStrategy(ABC):
         )
         self.correlations = (attribute_statistics or {}).get("correlations", {})
         self.max_rejections = MAX_REJECTIONS[scenario]
-        self.stats = load_stats(scenario_to_path(scenario))
+        
+        # Initialize online distribution with API constraints
+        self.distribution = OnlineDistribution(
+            marginals=self.relative_frequencies,
+            correlations=self.correlations
+        )
+    
+    def update_distribution(self, attrs: dict[str, bool]) -> None:
+        """Update the joint distribution with observed person attributes."""
+        self.distribution.update(attrs)
 
     @abstractmethod
     def decide(self, attrs: dict[str, bool]) -> bool: ...
