@@ -12,11 +12,14 @@ from berghain.strategy_base import BaseStrategy
 
 
 class Strategy(BaseStrategy):
-    def __init__(self, scenario, constraints, attribute_statistics):
-        super().__init__(scenario, constraints, attribute_statistics)
-        self.deficits = dict(self.min_required)  # NOTE can be negative
-        self.remaining_accepts = 1000
-        self.remaining_rejects = self.max_rejections
+    def __init__(self, scenario, constraints, attribute_statistics, resume_run=False):
+        super().__init__(scenario, constraints, attribute_statistics, resume_run)
+        if resume_run:
+            self._initialize_from_user_input()
+        else:
+            self.deficits = dict(self.min_required)  # NOTE can be negative
+            self.remaining_accepts = 1000
+            self.remaining_rejects = self.max_rejections
 
         self.remaining_rejects_modified = self.remaining_rejects
         self.accept_feasibility_count_log = []
@@ -212,6 +215,8 @@ class Strategy(BaseStrategy):
         print(f"generated {n_runs} runs in {time() - gen_start:.2f}s")
 
         # Pre-compute coverage indices
+        if self.stats is None:
+            raise Exception("no stats loaded")
         bits_to_set = self.stats["bits_to_set"]
         cover_ix_by_var = self._build_coverage_index(bits_to_set, deficits)
 
@@ -263,3 +268,47 @@ class Strategy(BaseStrategy):
         print(f"feasible: {n_feasible}; time: {time() - mc_start}")
 
         return n_feasible
+
+    def _initialize_from_user_input(self):
+        """Initialize strategy state from user input when resuming a run."""
+        print("Resuming run - please provide current state values:")
+
+        # Initialize deficits for each attribute
+        self.deficits = {}
+        for attr in self.min_required.keys():
+            while True:
+                try:
+                    deficit = int(input(f"Current deficit for '{attr}': "))
+                    self.deficits[attr] = deficit
+                    break
+                except ValueError:
+                    print("Please enter a valid integer.")
+
+        # Initialize remaining counts
+        while True:
+            try:
+                self.remaining_accepts = int(input("Remaining accepts (out of 1000): "))
+                break
+            except ValueError:
+                print("Please enter a valid integer.")
+
+        while True:
+            try:
+                self.remaining_rejects = int(
+                    input(f"Remaining rejects (out of {self.max_rejections}): ")
+                )
+                break
+            except ValueError:
+                print("Please enter a valid integer.")
+
+        # Initialize other state variables with default values
+        self.remaining_rejects_modified = self.remaining_rejects
+        self.accept_feasibility_count_log = []
+        self.reject_feasibility_count_log = []
+        self.feasibility_count_diff_log = []
+        self.n_runs = 1000
+
+        # Validate stats
+        if self.stats is None:
+            raise Exception("no stats loaded")
+        self.proba = self.stats["proba"]
