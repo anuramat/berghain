@@ -179,8 +179,34 @@ def main(argv: list[str] | None = None) -> int:
         print("PLAYER_ID env var is required", file=sys.stderr)
         return 1
 
-    # Always fetch constraints/stats to construct the strategy deterministically
-    meta = new_game(args.scenario, player_id)
+    # Ensure log directory exists
+    log_dir = Path("logs") / f"scenario{args.scenario}"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load constraints/stats from cache when resuming, otherwise fetch from API
+    if args.resume:
+        meta_cache_path = log_dir / "meta.json"
+        
+        if not meta_cache_path.exists():
+            print(f"Error: meta cache not found at {meta_cache_path}. Cannot resume without cached game data.", file=sys.stderr)
+            return 1
+        
+        with meta_cache_path.open("r") as f:
+            meta = json.load(f)
+    else:
+        meta = new_game(args.scenario, player_id)
+        
+        # Save meta to cache (only for new games, not resumes)
+        meta_cache_path = log_dir / "meta.json"
+        with meta_cache_path.open("w") as f:
+            json.dump(
+                {
+                    "constraints": meta.get("constraints"),
+                    "attributeStatistics": meta.get("attributeStatistics"),
+                },
+                f,
+            )
+
     strategy = load_strategy(
         args.strategy,
         args.scenario,
@@ -188,20 +214,6 @@ def main(argv: list[str] | None = None) -> int:
         meta.get("attributeStatistics"),
         bool(args.resume),  # resume_run
     )
-
-    log_dir = Path("logs") / f"scenario{args.scenario}"
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save meta to cache (real runs always write, never read)
-    meta_cache_path = log_dir / "meta.json"
-    with meta_cache_path.open("w") as f:
-        json.dump(
-            {
-                "constraints": meta.get("constraints"),
-                "attributeStatistics": meta.get("attributeStatistics"),
-            },
-            f,
-        )
 
     if args.resume:
         game_id = args.resume
