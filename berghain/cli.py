@@ -18,10 +18,16 @@ def format_decision_log(idx: int, decision: bool, attrs: dict[str, bool]) -> str
     return f"{idx:4d}: {action}; {attrs_str}"
 
 
-def load_strategy(module_name: str | None, scenario, constraints, attribute_statistics):
+def load_strategy(
+    module_name: str | None,
+    scenario,
+    constraints,
+    attribute_statistics,
+    resume_run: bool = False,
+):
     mod = f"strategies.{module_name or 'default'}"
     cls = getattr(importlib.import_module(mod), "Strategy")
-    return cls(scenario, constraints, attribute_statistics)
+    return cls(scenario, constraints, attribute_statistics, resume_run)
 
 
 def analyze_log(path: str) -> int:
@@ -73,6 +79,7 @@ def test_run(log_file: str, scenario: int, strategy_name: str) -> int:
             scenario,
             meta.get("constraints"),
             meta.get("attributeStatistics"),
+            False,  # resume_run
         )
     except Exception as e:
         print(f"Error initializing strategy: {e}", file=sys.stderr)
@@ -179,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         args.scenario,
         meta.get("constraints"),
         meta.get("attributeStatistics"),
+        bool(args.resume),  # resume_run
     )
 
     log_dir = Path("logs") / f"scenario{args.scenario}"
@@ -216,14 +224,12 @@ def main(argv: list[str] | None = None) -> int:
             if log_path.exists():
                 with log_path.open() as f:
                     lines = [ln.strip() for ln in f if ln.strip()]
-            # Rebuild state by replaying prior people
-            for i in range(min(idx, len(lines))):
-                strategy.decide(json.loads(lines[i]))
             if idx >= len(lines):
                 print("failed: missing attributes for expected person", file=sys.stderr)
                 return 2
-            decision = strategy.decide(json.loads(lines[idx]))
-            print(format_decision_log(idx, decision, json.loads(lines[idx])))
+            person_attrs = json.loads(lines[idx])
+            decision = strategy.decide(person_attrs)
+            print(format_decision_log(idx, decision, person_attrs))
             r = decide_and_next(game_id, idx, decision)
     else:
         game = meta

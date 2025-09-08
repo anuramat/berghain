@@ -19,7 +19,11 @@ class BaseStrategy(ABC):
     stats: dict | None  # counts from previous runs for joint estimation
 
     def __init__(
-        self, scenario: int, constraints: list[dict], attribute_statistics: dict
+        self,
+        scenario: int,
+        constraints: list[dict],
+        attribute_statistics: dict,
+        resume_run: bool = False,
     ):
         self.min_required = {c["attribute"]: c["minCount"] for c in (constraints or [])}
         self.relative_frequencies = (attribute_statistics or {}).get(
