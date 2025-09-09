@@ -1,3 +1,5 @@
+user notes, should be prioritized over anything else:
+
 # Notes
 
 The strategies should optimize the probability of beating the current state-of-the-art;

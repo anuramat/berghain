@@ -1,3 +1,5 @@
+official problem description:
+
 # Berghain Challenge
 
 You're the bouncer at a night club. Your goal is to fill the venue with N=1000

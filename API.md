@@ -1,3 +1,5 @@
+official API description:
+
 # API
 
 1. Create a new game: `/new-game?scenario=1&playerId=[playerId]`
