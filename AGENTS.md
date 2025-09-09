@@ -1,5 +1,17 @@
 # Repository Guidelines
 
+official problem description:
+
+@CHALLENGE.md
+
+user notes, should be prioritized over anything else:
+
+@NOTES.md
+
+base class for strategies:
+
+@berghain/strategy_base.py
+
 ## Project Structure & Module Organization
 
 - `berghain/`: core client code
