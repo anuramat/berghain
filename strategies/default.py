@@ -179,7 +179,7 @@ class Strategy(BaseStrategy):
         # Solve
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = 0.2
-        solver.parameters.num_search_workers = 1  # Single worker per subprocess
+        solver.parameters.num_search_workers = 4  # Single worker per subprocess
 
         status = solver.Solve(model)
         return status in (cp_model.FEASIBLE, cp_model.OPTIMAL)
