@@ -263,6 +263,12 @@ def main(argv: list[str] | None = None) -> int:
                     person["personIndex"], decision, person["attributes"]
                 )
             )
+            
+            # Check if strategy signals early termination
+            if strategy.can_terminate_early():
+                print("Strategy requested early termination - game is unwinnable")
+                return 3  # New exit code for early termination
+            
             r = decide_and_next(game_id, person["personIndex"], decision)
     if r.get("status") == "completed":
         print("completed: rejectedCount=", r.get("rejectedCount"))

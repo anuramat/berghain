@@ -49,6 +49,18 @@ class Strategy(BaseStrategy):
         present = [k for k, v in attrs.items() if v]
         return self._decide(present)
 
+    def can_terminate_early(self) -> bool:
+        """
+        Terminate early if the maximum deficit cannot be met with remaining accepts.
+        Since each person can potentially decrease multiple deficits, we only need
+        to check if the largest deficit exceeds our remaining capacity.
+        """
+        if self.remaining_accepts <= 0:
+            return True
+            
+        max_deficit = max((deficit for deficit in self.deficits.values() if deficit > 0), default=0)
+        return max_deficit > self.remaining_accepts
+
     def _decide(self, attrs: list[str]) -> bool:
         unmet = [k for k, v in self.deficits.items() if v > 0]
         if not unmet or self.remaining_rejects <= 0:

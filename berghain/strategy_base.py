@@ -35,3 +35,12 @@ class BaseStrategy(ABC):
 
     @abstractmethod
     def decide(self, attrs: dict[str, bool]) -> bool: ...
+
+    def can_terminate_early(self) -> bool:
+        """
+        Check if the game can be terminated early because it's impossible to meet requirements.
+        
+        Returns:
+            bool: True if the game should be terminated early, False otherwise.
+        """
+        return False  # Default implementation - never terminate early
