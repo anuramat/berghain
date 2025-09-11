@@ -283,35 +283,50 @@ class Strategy(BaseStrategy):
 
     def _initialize_from_user_input(self):
         """Initialize strategy state from user input when resuming a run."""
-        print("Resuming run - please provide current state values:")
+        print("Resuming run - please provide current statistics:")
 
-        # Initialize deficits for each attribute
-        self.deficits = {}
+        # Initialize accepted counts for each attribute
+        accepted_counts = {}
         for attr in self.min_required.keys():
             while True:
                 try:
-                    deficit = int(input(f"Current deficit for '{attr}': "))
-                    self.deficits[attr] = deficit
+                    count = int(input(f"Number of people already ACCEPTED with attribute '{attr}': "))
+                    if count < 0:
+                        raise ValueError
+                    accepted_counts[attr] = count
                     break
                 except ValueError:
-                    print("Please enter a valid integer.")
+                    print("Please enter a non-negative integer.")
 
-        # Initialize remaining counts
+        # Initialize total accepted people
         while True:
             try:
-                self.remaining_accepts = int(input("Remaining accepts (out of 1000): "))
+                total_accepted = int(input("Total number of people ACCEPTED so far (out of 1000): "))
+                if not (0 <= total_accepted <= 1000):
+                    raise ValueError
                 break
             except ValueError:
-                print("Please enter a valid integer.")
+                print("Enter an integer between 0 and 1000.")
 
+        # Initialize total rejected people
         while True:
             try:
-                self.remaining_rejects = int(
-                    input(f"Remaining rejects (out of {self.max_rejections}): ")
-                )
+                total_rejected = int(input(f"Total number of people REJECTED so far (out of {self.max_rejections}): "))
+                if not (0 <= total_rejected <= self.max_rejections):
+                    raise ValueError
                 break
             except ValueError:
-                print("Please enter a valid integer.")
+                print(f"Enter an integer between 0 and {self.max_rejections}.")
+
+        # Calculate deficits from accepted counts
+        self.deficits = {}
+        for attr, required in self.min_required.items():
+            already_accepted = accepted_counts.get(attr, 0)
+            self.deficits[attr] = required - already_accepted  # can be negative
+
+        # Calculate remaining counts
+        self.remaining_accepts = 1000 - total_accepted
+        self.remaining_rejects = self.max_rejections - total_rejected
 
         # Initialize other state variables with default values
         self.remaining_rejects_modified = self.remaining_rejects
