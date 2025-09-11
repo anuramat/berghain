@@ -55,11 +55,32 @@ class Strategy(BaseStrategy):
         Since each person can potentially decrease multiple deficits, we only need
         to check if the largest deficit exceeds our remaining capacity.
         """
+        if (
+            len(self.accept_feasibility_count_log) >= 10
+            and len(self.reject_feasibility_count_log) >= 10
+        ):
+            if (
+                max(self.accept_feasibility_count_log[-10:]) == 0
+                and max(self.reject_feasibility_count_log[-10:]) == 0
+            ):
+                print(
+                    "Early stopping: Last 10 feasibility counts are 0 for both actions"
+                )
+                return True
+
         if self.remaining_accepts <= 0:
             return True
-            
-        max_deficit = max((deficit for deficit in self.deficits.values() if deficit > 0), default=0)
-        return max_deficit > self.remaining_accepts
+
+        max_deficit = max(
+            (deficit for deficit in self.deficits.values() if deficit > 0), default=0
+        )
+        if max_deficit > self.remaining_accepts:
+            print(
+                f"Early stopping: max deficit {max_deficit} exceeds remaining accepts {self.remaining_accepts}"
+            )
+            return True
+
+        return False
 
     def _decide(self, attrs: list[str]) -> bool:
         unmet = [k for k, v in self.deficits.items() if v > 0]
@@ -290,7 +311,11 @@ class Strategy(BaseStrategy):
         for attr in self.min_required.keys():
             while True:
                 try:
-                    count = int(input(f"Number of people already ACCEPTED with attribute '{attr}': "))
+                    count = int(
+                        input(
+                            f"Number of people already ACCEPTED with attribute '{attr}': "
+                        )
+                    )
                     if count < 0:
                         raise ValueError
                     accepted_counts[attr] = count
@@ -301,7 +326,9 @@ class Strategy(BaseStrategy):
         # Initialize total accepted people
         while True:
             try:
-                total_accepted = int(input("Total number of people ACCEPTED so far (out of 1000): "))
+                total_accepted = int(
+                    input("Total number of people ACCEPTED so far (out of 1000): ")
+                )
                 if not (0 <= total_accepted <= 1000):
                     raise ValueError
                 break
@@ -311,7 +338,11 @@ class Strategy(BaseStrategy):
         # Initialize total rejected people
         while True:
             try:
-                total_rejected = int(input(f"Total number of people REJECTED so far (out of {self.max_rejections}): "))
+                total_rejected = int(
+                    input(
+                        f"Total number of people REJECTED so far (out of {self.max_rejections}): "
+                    )
+                )
                 if not (0 <= total_rejected <= self.max_rejections):
                     raise ValueError
                 break

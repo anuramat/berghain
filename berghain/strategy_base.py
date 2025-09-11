@@ -7,7 +7,7 @@ MAX_REJECTIONS: dict[int, int] = {
     # depending on scenario
     1: 800,
     2: 3500,
-    3: 4500,
+    3: 6000,
 }
 
 
@@ -39,7 +39,7 @@ class BaseStrategy(ABC):
     def can_terminate_early(self) -> bool:
         """
         Check if the game can be terminated early because it's impossible to meet requirements.
-        
+
         Returns:
             bool: True if the game should be terminated early, False otherwise.
         """
