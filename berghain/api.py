@@ -23,11 +23,13 @@ def _get_json(path: str, params: dict) -> dict:
                 return json.loads(r.read().decode())
         except HTTPError as e:
             if e.code in (429, 500, 502, 503, 504):
+                print(f"HTTPError {e.code}, retrying in {delay}s")
                 time.sleep(delay)
                 delay = min(10.0, delay * 2)
                 continue
             raise
-        except URLError:
+        except URLError as e:
+            print(f"URLError {e}, retrying in {delay}s")
             time.sleep(delay)
             delay = min(10.0, delay * 2)
     # last attempt
